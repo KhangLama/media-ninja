@@ -152,10 +152,10 @@ function ToolWorkspace({
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
+      <div className="flex flex-col gap-6">
         <div
           aria-label="Media tools"
-          className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 self-start"
+          className="grid gap-4 grid-cols-1 sm:grid-cols-2 max-w-2xl w-full mx-auto"
           role="tablist"
         >
           {tools.map((tool) => (
@@ -168,11 +168,13 @@ function ToolWorkspace({
           ))}
         </div>
 
-        {activeToolId === "video" ? (
-          <VideoProcessor />
-        ) : (
-          <ImageProcessor key={activeToolId} />
-        )}
+        <div className="w-full">
+          {activeToolId === "video" ? (
+            <VideoProcessor />
+          ) : (
+            <ImageProcessor key={activeToolId} />
+          )}
+        </div>
       </div>
     </section>
   );
