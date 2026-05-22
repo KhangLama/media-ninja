@@ -13,6 +13,7 @@
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
     "@huggingface/transformers": "^4.2.0",
+    "@vercel/speed-insights": "^2.0.0",
     "browser-image-compression": "^2.0.2",
     "exif-js": "^2.3.0",
     "jszip": "^3.10.1",
