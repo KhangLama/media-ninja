@@ -155,7 +155,7 @@ function ToolWorkspace({
       <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
         <div
           aria-label="Media tools"
-          className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1"
+          className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 self-start"
           role="tablist"
         >
           {tools.map((tool) => (
