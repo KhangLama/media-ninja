@@ -4,6 +4,7 @@ import EXIF from "exif-js";
 import imageCompression from "browser-image-compression";
 import JSZip from "jszip";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLanguage } from "@/components/LanguageContext";
 
 type ProcessingStatus = "idle" | "processing" | "ready" | "error";
 
@@ -23,7 +24,7 @@ type ExifTagMap = Partial<{
   ISOSpeedRatings: unknown;
   DateTimeOriginal: unknown;
   DateTime: unknown;
-}>;
+ }>;
 
 type ProcessedImage = {
   id: string;
@@ -43,10 +44,9 @@ type ProcessedImage = {
 
 const ACCEPTED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const EXIF_TYPES = new Set(["image/jpeg", "image/tiff"]);
-const MAX_SIZE_MB = 1.5;
-const MAX_WIDTH_OR_HEIGHT = 2400;
 
 export default function ImageProcessor() {
+  const { t } = useLanguage();
   const [items, setItems] = useState<ProcessedImage[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isZipping, setIsZipping] = useState(false);
@@ -126,9 +126,7 @@ export default function ImageProcessor() {
 
         try {
           if (!ACCEPTED_TYPES.has(item.originalFile.type)) {
-            throw new Error(
-              "Định dạng không hợp lệ. Vui lòng chọn ảnh JPEG, PNG hoặc WebP.",
-            );
+            throw new Error("img_err_invalid_type");
           }
 
           let outputFile = await compressImageFile(
@@ -169,7 +167,7 @@ export default function ImageProcessor() {
             error:
               error instanceof Error
                 ? error.message
-                : "Không thể xử lý file này. Vui lòng thử ảnh khác.",
+                : "img_err_processing_failed",
           });
         }
       })
@@ -208,7 +206,7 @@ export default function ImageProcessor() {
     if (!ACCEPTED_TYPES.has(item.originalFile.type)) {
       updateImageItem(item.id, {
         status: "error",
-        error: "Không thể xóa metadata cho định dạng file này.",
+        error: "img_err_metadata_not_supported",
       });
       return;
     }
@@ -241,7 +239,7 @@ export default function ImageProcessor() {
         error:
           error instanceof Error
             ? error.message
-            : "Không thể xóa metadata. Ảnh có thể đang bị lỗi hoặc không được trình duyệt hỗ trợ.",
+            : "img_err_metadata_failed",
       });
     }
   }, [updateImageItem]);
@@ -308,17 +306,17 @@ export default function ImageProcessor() {
             <UploadIcon />
           </div>
           <h3 className="text-xl font-semibold text-white">
-            Nén ảnh trong trình duyệt
+            {t("img_drop_title")}
           </h3>
           <p className="mt-3 max-w-md text-sm leading-relaxed text-neutral-400">
-            Chọn hoặc kéo thả ảnh JPEG, PNG, WebP. Ảnh được xử lý 100% cục bộ trên thiết bị của bạn, bảo mật tuyệt đối.
+            {t("img_drop_desc")}
           </p>
           <button
             className="mt-6 inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-400 to-blue-500 px-5 py-2.5 text-sm font-semibold text-neutral-950 shadow-md transition-all duration-200 hover:from-cyan-300 hover:to-blue-400 hover:scale-[1.02] cursor-pointer"
             onClick={() => inputRef.current?.click()}
             type="button"
           >
-            Chọn ảnh từ máy
+            {t("img_drop_btn")}
           </button>
         </div>
       ) : (
@@ -327,9 +325,9 @@ export default function ImageProcessor() {
           <div className="space-y-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-white/5 pb-4">
               <div className="flex items-center gap-2.5">
-                <h3 className="text-lg font-bold text-white">Hàng chờ xử lý</h3>
+                <h3 className="text-lg font-bold text-white">{t("img_queue_title")}</h3>
                 <span className="rounded-full bg-neutral-800 border border-white/5 px-2.5 py-0.5 text-xs font-semibold text-neutral-300">
-                  {items.length} ảnh
+                  {t("img_queue_count", { count: items.length })}
                 </span>
               </div>
               
@@ -340,7 +338,7 @@ export default function ImageProcessor() {
                   type="button"
                 >
                   <PlusIcon />
-                  Thêm ảnh
+                  {t("img_btn_add")}
                 </button>
                 <button
                   className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-neutral-900/60 px-3 py-1.5 text-xs font-semibold text-red-400/90 transition-all hover:bg-red-950/20 hover:text-red-300 cursor-pointer"
@@ -348,7 +346,7 @@ export default function ImageProcessor() {
                   type="button"
                 >
                   <TrashIcon />
-                  Xóa tất cả
+                  {t("img_btn_clear_all")}
                 </button>
                 {readyItems.length > 0 && (
                   <button
@@ -357,7 +355,7 @@ export default function ImageProcessor() {
                     onClick={() => void downloadAll()}
                     type="button"
                   >
-                    {isZipping ? "Đang tạo ZIP..." : `Tải tất cả ZIP (${readyItems.length})`}
+                    {isZipping ? t("img_btn_zipping") : t("img_btn_download_zip", { count: readyItems.length })}
                   </button>
                 )}
               </div>
@@ -375,7 +373,7 @@ export default function ImageProcessor() {
                     <button
                       className="absolute top-2 right-2 z-10 p-1.5 rounded-full bg-neutral-950/80 border border-white/5 text-neutral-400 hover:text-white hover:bg-neutral-900 transition-all cursor-pointer"
                       onClick={() => removeItem(item.id)}
-                      title="Xóa khỏi danh sách"
+                      title={t("img_btn_remove")}
                       type="button"
                     >
                       <CloseIcon />
@@ -390,29 +388,29 @@ export default function ImageProcessor() {
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-neutral-600 text-xs">
-                          Không có xem trước
+                          {t("img_no_preview")}
                         </div>
                       )}
                       
                       <div className="absolute bottom-2 left-2 flex gap-1.5">
                         {item.status === "idle" && (
                           <span className="rounded bg-neutral-950/80 border border-white/5 px-2 py-0.5 text-[10px] font-medium text-neutral-400">
-                            Chờ nén
+                            {t("img_status_pending")}
                           </span>
                         )}
                         {item.status === "processing" && (
                           <span className="rounded bg-blue-500/20 border border-blue-500/30 px-2 py-0.5 text-[10px] font-medium text-blue-300">
-                            Đang xử lý
+                            {t("img_status_processing")}
                           </span>
                         )}
                         {item.status === "ready" && (
                           <span className="rounded bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-medium text-emerald-300">
-                            Sẵn sàng
+                            {t("img_status_ready")}
                           </span>
                         )}
                         {item.status === "error" && (
                           <span className="rounded bg-red-500/20 border border-red-500/30 px-2 py-0.5 text-[10px] font-medium text-red-300">
-                            Lỗi
+                            {t("img_status_error")}
                           </span>
                         )}
                       </div>
@@ -425,7 +423,7 @@ export default function ImageProcessor() {
                         </h4>
                         
                         <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-neutral-400">
-                          <span>Gốc: {formatBytes(item.originalSize)}</span>
+                          <span>{t("img_size_original", { size: formatBytes(item.originalSize) })}</span>
                           {item.outputSize ? (
                             <>
                               <span className="text-neutral-600">→</span>
@@ -436,17 +434,17 @@ export default function ImageProcessor() {
                                 if (percent > 0) {
                                   return (
                                     <span className="rounded bg-emerald-500/10 px-1.5 py-0.2 text-[10px] font-semibold text-emerald-400 border border-emerald-500/10">
-                                      Giảm {percent}%
+                                      {t("img_size_reduced", { percent })}
                                     </span>
                                   );
                                 } else if (percent < 0) {
                                   return (
                                     <span className="rounded bg-amber-500/10 px-1.5 py-0.2 text-[10px] font-semibold text-amber-400 border border-amber-500/10">
-                                      Tăng {Math.abs(percent)}%
+                                      {t("img_size_increased", { percent: Math.abs(percent) })}
                                     </span>
                                   );
                                 } else {
-                                  return <span className="text-neutral-500">(Không đổi)</span>;
+                                  return <span className="text-neutral-500">{t("img_size_unchanged")}</span>;
                                 }
                               })()}
                             </>
@@ -455,29 +453,31 @@ export default function ImageProcessor() {
 
                         {item.error && (
                           <p className="mt-2 text-xs text-red-400/90 bg-red-950/20 border border-red-500/10 rounded p-1.5 break-words">
-                            {item.error}
+                            {t(item.error)}
                           </p>
                         )}
 
                         {item.exif && isItemExifPresent && (
                           <div className="mt-2.5 rounded-lg bg-neutral-950/30 p-2 text-[10px] text-neutral-400 border border-white/[0.03] space-y-1">
                             <div className="flex justify-between items-center text-neutral-500">
-                              <span>EXIF gốc</span>
+                              <span>{t("img_exif_title")}</span>
                               {item.metadataCleared && (
-                                <span className="text-emerald-400/90 font-medium">✓ Đã làm sạch</span>
+                                <span className="text-emerald-400/90 font-medium">{t("img_exif_cleared")}</span>
                               )}
                             </div>
                             <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
-                              {item.exif.camera !== "Không có" && (
-                                <div className="truncate" title={item.exif.camera}>📷 {item.exif.camera}</div>
+                              {item.exif.camera !== "none" && (
+                                <div className="truncate" title={item.exif.camera}>
+                                  {t("img_exif_camera", { camera: item.exif.camera })}
+                                </div>
                               )}
-                              {item.exif.aperture !== "Không có" && (
+                              {item.exif.aperture !== "none" && (
                                 <div>⭕ {item.exif.aperture}</div>
                               )}
-                              {item.exif.shutterSpeed !== "Không có" && (
+                              {item.exif.shutterSpeed !== "none" && (
                                 <div>⚡ {item.exif.shutterSpeed}</div>
                               )}
-                              {item.exif.iso !== "Không có" && (
+                              {item.exif.iso !== "none" && (
                                 <div>🎞️ {item.exif.iso}</div>
                               )}
                             </div>
@@ -486,7 +486,7 @@ export default function ImageProcessor() {
                         
                         {item.metadataCleared && !isItemExifPresent && (
                           <p className="mt-2 text-[10px] text-emerald-400/90">
-                            ✓ Đã làm sạch Metadata bảo mật.
+                            {t("img_exif_cleared_msg")}
                           </p>
                         )}
                       </div>
@@ -498,7 +498,7 @@ export default function ImageProcessor() {
                           onClick={() => void clearMetadata(item)}
                           type="button"
                         >
-                          Xóa EXIF
+                          {t("img_btn_clear_exif")}
                         </button>
                         {item.downloadUrl ? (
                           <a
@@ -506,14 +506,14 @@ export default function ImageProcessor() {
                             download={item.outputFile?.name ?? item.displayName}
                             href={item.downloadUrl}
                           >
-                            Tải về
+                            {t("img_btn_download")}
                           </a>
                         ) : (
                           <button
                             className="flex-1 rounded-md bg-neutral-850 px-2.5 py-1.5 text-xs font-semibold text-neutral-500 cursor-not-allowed"
                             disabled
                           >
-                            Tải về
+                            {t("img_btn_download")}
                           </button>
                         )}
                       </div>
@@ -536,13 +536,13 @@ export default function ImageProcessor() {
           <aside className="lg:sticky lg:top-6 rounded-xl border border-white/10 bg-neutral-900/60 p-4.5 backdrop-blur-md shadow-xl space-y-5">
             <div className="flex items-center gap-2 border-b border-white/5 pb-3">
               <SettingsIcon />
-              <h3 className="text-sm font-bold text-white">Cấu hình nén ảnh</h3>
+              <h3 className="text-sm font-bold text-white">{t("img_side_title")}</h3>
             </div>
 
             <div className="space-y-4 text-xs">
               <div className="space-y-2">
                 <div className="flex justify-between">
-                  <span className="text-neutral-400">Chất lượng (Quality)</span>
+                  <span className="text-neutral-400">{t("img_side_quality")}</span>
                   <span className="font-bold text-cyan-300">{quality}%</span>
                 </div>
                 <input
@@ -556,13 +556,13 @@ export default function ImageProcessor() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-neutral-400 block">Kích thước ảnh tối đa</label>
+                <label className="text-neutral-400 block">{t("img_side_max_res")}</label>
                 <select
                   value={maxWidthHeight}
                   onChange={(e) => setMaxWidthHeight(e.target.value === "original" ? "original" : Number(e.target.value))}
                   className="w-full rounded-lg border border-white/10 bg-neutral-950 px-3 py-2 text-white outline-none focus:border-cyan-300/70 focus:ring-1 focus:ring-cyan-300/40"
                 >
-                  <option value="original">Giữ nguyên độ phân giải</option>
+                  <option value="original">{t("img_side_keep_res")}</option>
                   <option value="3840">4K UHD (3840px)</option>
                   <option value="2048">2K (2048px)</option>
                   <option value="1920">Full HD 1080p (1920px)</option>
@@ -571,23 +571,23 @@ export default function ImageProcessor() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-neutral-400 block">Định dạng xuất</label>
+                <label className="text-neutral-400 block">{t("img_side_output_fmt")}</label>
                 <select
                   value={outputFormat}
                   onChange={(e) => setOutputFormat(e.target.value as any)}
                   className="w-full rounded-lg border border-white/10 bg-neutral-950 px-3 py-2 text-white outline-none focus:border-cyan-300/70 focus:ring-1 focus:ring-cyan-300/40"
                 >
-                  <option value="original">Giữ nguyên định dạng gốc</option>
-                  <option value="image/webp">Chuyển sang WebP (Tối ưu)</option>
-                  <option value="image/jpeg">Chuyển sang JPEG</option>
-                  <option value="image/png">Chuyển sang PNG</option>
+                  <option value="original">{t("img_side_keep_fmt")}</option>
+                  <option value="image/webp">{t("img_side_fmt_webp")}</option>
+                  <option value="image/jpeg">{t("img_side_fmt_jpeg")}</option>
+                  <option value="image/png">{t("img_side_fmt_png")}</option>
                 </select>
               </div>
 
               <label className="relative flex items-center justify-between cursor-pointer select-none py-1 border-t border-white/5 pt-4">
                 <div className="space-y-0.5">
-                  <span className="block font-semibold text-white">Tự động xóa Metadata</span>
-                  <span className="block text-[10px] text-neutral-500">Xóa EXIF & GPS bảo mật riêng tư</span>
+                  <span className="block font-semibold text-white">{t("img_side_auto_clear_exif")}</span>
+                  <span className="block text-[10px] text-neutral-500">{t("img_side_auto_clear_exif_desc")}</span>
                 </div>
                 <input
                   type="checkbox"
@@ -611,12 +611,12 @@ export default function ImageProcessor() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Đang nén ảnh...
+                  {t("img_side_btn_compressing")}
                 </>
               ) : (
                 <>
                   <SparklesIcon />
-                  Bắt đầu nén ({items.length})
+                  {t("img_side_btn_compress", { count: items.length })}
                 </>
               )}
             </button>
@@ -630,11 +630,11 @@ export default function ImageProcessor() {
 function hasExif(exif?: ExifSummary): exif is ExifSummary {
   if (!exif) return false;
   return (
-    exif.camera !== "Không có" ||
-    exif.aperture !== "Không có" ||
-    exif.shutterSpeed !== "Không có" ||
-    exif.iso !== "Không có" ||
-    exif.capturedAt !== "Không có"
+    exif.camera !== "none" ||
+    exif.aperture !== "none" ||
+    exif.shutterSpeed !== "none" ||
+    exif.iso !== "none" ||
+    exif.capturedAt !== "none"
   );
 }
 
@@ -654,6 +654,7 @@ function PlusIcon() {
   );
 }
 
+// Keep other SVGs/helpers...
 function CloseIcon() {
   return (
     <svg
@@ -702,16 +703,6 @@ function SparklesIcon() {
   );
 }
 
-
-function ExifField({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md bg-neutral-950 px-3 py-2">
-      <dt className="text-xs text-neutral-500">{label}</dt>
-      <dd className="mt-1 truncate text-sm text-neutral-200">{value}</dd>
-    </div>
-  );
-}
-
 function UploadIcon() {
   return (
     <svg
@@ -727,6 +718,23 @@ function UploadIcon() {
       <path d="M12 16V4" />
       <path d="m7 9 5-5 5 5" />
       <path d="M20 16.5V19a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2.5" />
+    </svg>
+  );
+}
+
+function SettingsIcon() {
+  return (
+    <svg
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+      className="h-4 w-4 text-cyan-300"
+    >
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
     </svg>
   );
 }
@@ -870,27 +878,8 @@ async function clearMetadataFile(file: File, customName?: string) {
       lastModified: Date.now(),
     });
   } catch {
-    throw new Error(
-      "Không thể xóa metadata. Ảnh có thể bị hỏng hoặc định dạng này chưa được trình duyệt hỗ trợ.",
-    );
+    throw new Error("img_err_metadata_failed_fallback");
   }
-}
-
-function SettingsIcon() {
-  return (
-    <svg
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-      className="h-4 w-4 text-cyan-300"
-    >
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-    </svg>
-  );
 }
 
 async function readExifSummary(file: File): Promise<ExifSummary> {
@@ -903,12 +892,12 @@ async function readExifSummary(file: File): Promise<ExifSummary> {
 
     return {
       camera: [formatExifValue(exif.Make), formatExifValue(exif.Model)]
-        .filter((value) => value !== "Không có")
+        .filter((value) => value !== "none")
         .join(" ")
-        .trim() || "Không có",
-      aperture: exif.FNumber ? `f/${formatExifNumber(exif.FNumber)}` : "Không có",
+        .trim() || "none",
+      aperture: exif.FNumber ? `f/${formatExifNumber(exif.FNumber)}` : "none",
       shutterSpeed: formatShutterSpeed(exif.ExposureTime),
-      iso: exif.ISOSpeedRatings ? `ISO ${formatExifValue(exif.ISOSpeedRatings)}` : "Không có",
+      iso: exif.ISOSpeedRatings ? `ISO ${formatExifValue(exif.ISOSpeedRatings)}` : "none",
       capturedAt: formatExifValue(exif.DateTimeOriginal ?? exif.DateTime),
     };
   } catch {
@@ -918,16 +907,16 @@ async function readExifSummary(file: File): Promise<ExifSummary> {
 
 function emptyExifSummary(): ExifSummary {
   return {
-    camera: "Không có",
-    aperture: "Không có",
-    shutterSpeed: "Không có",
-    iso: "Không có",
-    capturedAt: "Không có",
+    camera: "none",
+    aperture: "none",
+    shutterSpeed: "none",
+    iso: "none",
+    capturedAt: "none",
   };
 }
 
 function formatExifValue(value: unknown) {
-  if (value === undefined || value === null || value === "") return "Không có";
+  if (value === undefined || value === null || value === "") return "none";
   if (typeof value === "number" || typeof value === "string") return String(value);
   if (typeof value === "object" && "numerator" in value && "denominator" in value) {
     const rational = value as { numerator: number; denominator: number };
@@ -939,13 +928,13 @@ function formatExifValue(value: unknown) {
 
 function formatExifNumber(value: unknown) {
   const numberValue = Number(value);
-  if (!Number.isFinite(numberValue)) return "Không có";
+  if (!Number.isFinite(numberValue)) return "none";
   return Number.isInteger(numberValue) ? String(numberValue) : numberValue.toFixed(1);
 }
 
 function formatShutterSpeed(value: unknown) {
   const seconds = Number(value);
-  if (!Number.isFinite(seconds) || seconds <= 0) return "Không có";
+  if (!Number.isFinite(seconds) || seconds <= 0) return "none";
   if (seconds >= 1) return `${formatExifNumber(seconds)}s`;
   return `1/${Math.round(1 / seconds)}s`;
 }

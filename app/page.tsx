@@ -3,74 +3,74 @@
 import ImageProcessor from "@/components/ImageProcessor";
 import VideoProcessor from "@/components/VideoProcessor";
 import { useState } from "react";
+import { LanguageProvider, useLanguage } from "@/components/LanguageContext";
 
 type ToolId = "compress" | "video";
 
 type Tool = {
   id: ToolId;
-  title: string;
-  label: string;
-  description: string;
-  acceptLabel: string;
-  formats: string;
   accept: string;
 };
 
 const tools: Tool[] = [
   {
     id: "compress",
-    title: "Nén ảnh",
-    label: "Image Optimizer",
-    description: "Tối ưu hàng loạt ảnh WebP, JPEG, PNG với chất lượng linh hoạt.",
-    acceptLabel: "Kéo thả ảnh vào đây",
-    formats: "WebP, JPEG, PNG",
     accept: "image/webp,image/jpeg,image/png",
   },
   {
     id: "video",
-    title: "Xử lý Video",
-    label: "FFmpeg.wasm",
-    description: "Chuyển đổi định dạng, cắt video ngắn ngay trong trình duyệt.",
-    acceptLabel: "Kéo thả video ngắn vào đây",
-    formats: "MP4, MOV, WebM",
     accept: "video/mp4,video/quicktime,video/webm",
   },
 ];
 
 export default function Home() {
+  return (
+    <LanguageProvider>
+      <main className="min-h-screen bg-neutral-950 text-neutral-50">
+        <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-6 sm:px-6 lg:px-8">
+          <Header />
+          <HomeContent />
+          <Footer />
+        </div>
+      </main>
+    </LanguageProvider>
+  );
+}
+
+function HomeContent() {
   const [activeToolId, setActiveToolId] = useState<ToolId>("compress");
 
   return (
-    <main className="min-h-screen bg-neutral-950 text-neutral-50">
-      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-6 sm:px-6 lg:px-8">
-        <Header />
-        <Hero />
-        <ToolWorkspace
-          activeToolId={activeToolId}
-          onToolChange={setActiveToolId}
-        />
-        <Footer />
-      </div>
-    </main>
+    <>
+      <Hero />
+      <ToolWorkspace
+        activeToolId={activeToolId}
+        onToolChange={setActiveToolId}
+      />
+    </>
   );
 }
 
 function Header() {
+  const { t } = useLanguage();
+
   return (
     <header className="flex items-center justify-between border-b border-white/10 pb-5">
       <a className="text-base font-semibold text-white flex items-center gap-2" href="#">
         <span>MediaNinja</span>
-        <span className="rounded bg-cyan-300/10 px-1.5 py-0.5 text-[10px] font-medium text-cyan-300">Open Source</span>
+        <span className="rounded bg-cyan-300/10 px-1.5 py-0.5 text-[10px] font-medium text-cyan-300">
+          {t("open_source")}
+        </span>
       </a>
       <nav
         aria-label="Primary navigation"
         className="flex items-center gap-6 text-sm text-neutral-400"
       >
         <a className="transition hover:text-white" href="#tools">
-          Công cụ
+          {t("tools")}
         </a>
         <a className="transition hover:text-white" href="#privacy">
-          Riêng tư
+          {t("privacy")}
         </a>
         <a
           className="flex items-center gap-1.5 text-neutral-300 transition hover:text-white"
@@ -79,7 +79,7 @@ function Header() {
           target="_blank"
         >
           <GithubIcon />
-          <span className="hidden sm:inline">GitHub</span>
+          <span className="hidden sm:inline">{t("github")}</span>
         </a>
       </nav>
     </header>
@@ -100,25 +100,26 @@ function GithubIcon() {
 }
 
 function Hero() {
+  const { t } = useLanguage();
+
   return (
     <section className="grid gap-8 py-12 sm:py-16 lg:grid-cols-[1.1fr_0.9fr] lg:items-end lg:py-20">
       <div className="max-w-3xl">
         <p className="mb-4 text-sm font-medium uppercase text-cyan-300">
-          Client-side media toolkit
+          {t("hero_tagline")}
         </p>
         <h1 className="text-4xl font-semibold text-white sm:text-5xl lg:text-6xl">
-          Xử lý media nhanh, riêng tư và không cần upload.
+          {t("hero_title")}
         </h1>
         <p className="mt-5 max-w-2xl text-base leading-7 text-neutral-300 sm:text-lg">
-          MediaNinja gom các tác vụ nén ảnh, chỉnh metadata và xử lý video ngắn vào một
-          giao diện tối giản, chạy trực tiếp trên trình duyệt của bạn.
+          {t("hero_description")}
         </p>
       </div>
       <div className="rounded-lg border border-white/10 bg-white/[0.03] p-5">
         <div className="grid grid-cols-3 gap-3 text-center">
-          <Metric value="0" label="Server upload" />
-          <Metric value="3" label="Media tools" />
-          <Metric value="100%" label="Local-first" />
+          <Metric value="0" label={t("metric_server_upload")} />
+          <Metric value="2" label={t("metric_media_tools")} />
+          <Metric value="100%" label={t("metric_local_first")} />
         </div>
       </div>
     </section>
@@ -141,13 +142,15 @@ function ToolWorkspace({
   activeToolId: ToolId;
   onToolChange: (toolId: ToolId) => void;
 }) {
+  const { t } = useLanguage();
+
   return (
     <section id="tools" className="flex-1 pb-12">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-2xl font-semibold text-white">Bắt đầu xử lý</h2>
+          <h2 className="text-2xl font-semibold text-white">{t("workspace_title")}</h2>
           <p className="mt-2 text-sm text-neutral-400">
-            Chọn công cụ, kéo thả file và xử lý tại chỗ trong trình duyệt.
+            {t("workspace_description")}
           </p>
         </div>
       </div>
@@ -189,6 +192,12 @@ function ToolTab({
   isActive: boolean;
   onClick: () => void;
 }) {
+  const { t } = useLanguage();
+  
+  const title = tool.id === "compress" ? t("tool_image_title") : t("tool_video_title");
+  const label = tool.id === "compress" ? t("tool_image_label") : t("tool_video_label");
+  const description = tool.id === "compress" ? t("tool_image_desc") : t("tool_video_desc");
+
   return (
     <button
       aria-selected={isActive}
@@ -205,8 +214,8 @@ function ToolTab({
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold">{tool.title}</p>
-          <p className="mt-1 text-xs text-neutral-500">{tool.label}</p>
+          <p className="text-sm font-semibold">{title}</p>
+          <p className="mt-1 text-xs text-neutral-500">{label}</p>
         </div>
         <span
           className={[
@@ -215,21 +224,22 @@ function ToolTab({
           ].join(" ")}
         />
       </div>
-      <p className="mt-4 text-sm leading-6 text-neutral-400">{tool.description}</p>
+      <p className="mt-4 text-sm leading-6 text-neutral-400">{description}</p>
     </button>
   );
 }
 
-
 function Footer() {
+  const { language, setLanguage, t } = useLanguage();
+
   return (
     <footer
-      className="flex flex-col gap-3 border-t border-white/10 py-6 text-sm text-neutral-500 sm:flex-row sm:items-center sm:justify-between"
+      className="flex flex-col gap-4 border-t border-white/10 py-6 text-sm text-neutral-500 sm:flex-row sm:items-center sm:justify-between"
       id="privacy"
     >
-      <p>© 2026 MediaNinja. Local-first media tools.</p>
+      <p>{t("footer_tagline")}</p>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <p>Không upload file mặc định. Không khóa dữ liệu của bạn.</p>
+        <p>{t("footer_privacy_note")}</p>
         <span className="hidden sm:inline text-neutral-700">•</span>
         <a
           className="text-neutral-400 hover:text-white transition flex items-center gap-1"
@@ -237,8 +247,18 @@ function Footer() {
           rel="noopener noreferrer"
           target="_blank"
         >
-          <span>Mã nguồn mở trên GitHub</span>
+          <span>{t("footer_github_link")}</span>
         </a>
+        <span className="hidden sm:inline text-neutral-700">•</span>
+        <select
+          aria-label="Select Language"
+          value={language}
+          onChange={(e) => setLanguage(e.target.value as any)}
+          className="rounded-md border border-white/10 bg-neutral-950 px-2 py-1 text-xs text-neutral-400 outline-none focus:border-cyan-300/70 hover:border-white/20 transition cursor-pointer"
+        >
+          <option value="vi">Tiếng Việt</option>
+          <option value="en">English</option>
+        </select>
       </div>
     </footer>
   );
