@@ -267,11 +267,13 @@ export default function VideoProcessor() {
       return;
     }
 
+    let targetSeek = 0;
     setVideos((current) =>
       current.map((v, i) => {
         if (i === activeIndex) {
           const nextDuration = v.duration || videoDuration;
           const nextSelection = v.selection[1] === 0 ? [0, videoDuration] as [number, number] : v.selection;
+          targetSeek = nextSelection[0];
           return {
             ...v,
             duration: nextDuration,
@@ -281,7 +283,8 @@ export default function VideoProcessor() {
         return v;
       })
     );
-  }, [activeIndex]);
+    seekPreview(targetSeek);
+  }, [activeIndex, seekPreview, updateActiveVideo]);
 
   const updateSelection = useCallback(
     (handle: DragHandle, rawValue: number) => {
