@@ -41,6 +41,12 @@ export default function VideoProcessor() {
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [isFFmpegLoaded, setIsFFmpegLoaded] = useState(false);
 
+  // Thêm các state và memo cấu hình cắt nhanh & phát thử
+  const [useFastCut, setUseFastCut] = useState(true);
+  const [isPlayingSelection, setIsPlayingSelection] = useState(false);
+  const [loopSelection, setLoopSelection] = useState(true);
+  const [videoWarning, setVideoWarning] = useState<string | null>(null);
+
   useEffect(() => {
     return () => {
       if (seekFrameRef.current) cancelAnimationFrame(seekFrameRef.current);
@@ -48,6 +54,48 @@ export default function VideoProcessor() {
       if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
       ffmpegRef.current?.terminate();
     };
+  }, []);
+
+  const isSameFormat = useMemo(() => {
+    if (!selectedFile) return false;
+    const ext = extensionFromFile(selectedFile);
+    return ext === outputFormat;
+  }, [selectedFile, outputFormat]);
+
+  const togglePlaySelection = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (isPlayingSelection) {
+      video.pause();
+      setIsPlayingSelection(false);
+    } else {
+      video.currentTime = selection[0];
+      void video.play().then(() => {
+        setIsPlayingSelection(true);
+      }).catch(() => {
+        setIsPlayingSelection(false);
+      });
+    }
+  }, [isPlayingSelection, selection]);
+
+  const handleTimeUpdate = useCallback(() => {
+    const video = videoRef.current;
+    if (!video || !isPlayingSelection) return;
+
+    if (video.currentTime >= selection[1] || video.currentTime < selection[0]) {
+      if (loopSelection) {
+        video.currentTime = selection[0];
+      } else {
+        video.pause();
+        setIsPlayingSelection(false);
+        video.currentTime = selection[0];
+      }
+    }
+  }, [isPlayingSelection, selection, loopSelection]);
+
+  const handlePause = useCallback(() => {
+    setIsPlayingSelection(false);
   }, []);
 
   const canProcess = useMemo(
@@ -132,6 +180,7 @@ export default function VideoProcessor() {
       if (!file) return;
 
       setError(null);
+      setVideoWarning(null);
       setResult(null);
       setProgress(0);
       setDuration(0);
@@ -145,6 +194,20 @@ export default function VideoProcessor() {
         setMessage("File không hợp lệ.");
         setError("Định dạng không hợp lệ. Vui lòng chọn MP4, MOV hoặc WebM.");
         return;
+      }
+
+      // Giới hạn dung lượng: >300MB chặn, >150MB cảnh báo
+      if (file.size > 300 * 1024 * 1024) {
+        setSelectedFile(null);
+        setPreviewUrl(null);
+        setStatus("error");
+        setMessage("File quá lớn.");
+        setError("Kích thước video vượt quá 300MB. Vui lòng chọn file nhỏ hơn để tránh crash trình duyệt.");
+        return;
+      }
+
+      if (file.size > 150 * 1024 * 1024) {
+        setVideoWarning("Cảnh báo: Video lớn hơn 150MB. Tiến trình render bình thường có thể làm tràn bộ nhớ trình duyệt. Khuyến nghị bật 'Cắt nhanh (Fast Cut)'.");
       }
 
       if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
@@ -182,6 +245,12 @@ export default function VideoProcessor() {
   const updateSelection = useCallback(
     (handle: DragHandle, rawValue: number) => {
       if (duration <= 0 || status === "processing") return;
+
+      setIsPlayingSelection(false);
+      const video = videoRef.current;
+      if (video && !video.paused) {
+        video.pause();
+      }
 
       setActiveHandle(handle);
       setSelection(([currentStart, currentEnd]) => {
@@ -222,6 +291,7 @@ export default function VideoProcessor() {
     try {
       await ffmpeg.writeFile(inputName, await fetchFile(selectedFile));
 
+      const isFastCutActive = isSameFormat && useFastCut;
       const args = buildFFmpegArgs({
         inputName,
         muteAudio: outputFormat !== "mp3" && muteOriginalAudio,
@@ -229,9 +299,14 @@ export default function VideoProcessor() {
         outputFormat,
         startTime: selection[0],
         endTime: selection[1],
+        useFastCut: isFastCutActive,
       });
 
-      setMessage(messageForFormat(outputFormat));
+      if (isFastCutActive) {
+        setMessage("Đang cắt video siêu tốc (Fast Cut)...");
+      } else {
+        setMessage(messageForFormat(outputFormat));
+      }
 
       const exitCode = await ffmpeg.exec(args);
       if (exitCode !== 0) {
@@ -270,7 +345,7 @@ export default function VideoProcessor() {
       );
       await Promise.allSettled([ffmpeg.deleteFile(inputName), ffmpeg.deleteFile(outputName)]);
     }
-  }, [duration, loadFFmpeg, muteOriginalAudio, outputFormat, selectedFile, selection]);
+  }, [duration, loadFFmpeg, muteOriginalAudio, outputFormat, selectedFile, selection, isSameFormat, useFastCut]);
 
   return (
     <section className="relative overflow-hidden rounded-lg border border-white/10 bg-neutral-900/80 p-4 sm:p-6">
@@ -291,9 +366,48 @@ export default function VideoProcessor() {
                 className="aspect-video w-full bg-black object-contain"
                 controls
                 onLoadedMetadata={handleLoadedMetadata}
+                onTimeUpdate={handleTimeUpdate}
+                onPause={handlePause}
                 ref={videoRef}
                 src={previewUrl}
               />
+            </div>
+
+            {/* Điều khiển phát thử đoạn chọn */}
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-white/10 bg-white/[0.03] p-3">
+              <div className="flex items-center gap-3">
+                <button
+                  className="flex items-center gap-2 rounded-md bg-cyan-300 px-4 py-1.5 text-xs font-semibold text-neutral-950 transition hover:bg-cyan-200"
+                  onClick={togglePlaySelection}
+                  type="button"
+                >
+                  {isPlayingSelection ? (
+                    <>
+                      <PauseIcon />
+                      <span>Dừng phát thử</span>
+                    </>
+                  ) : (
+                    <>
+                      <PlayIcon />
+                      <span>Phát thử đoạn chọn</span>
+                    </>
+                  )}
+                </button>
+
+                <label className="flex items-center gap-2 text-xs text-neutral-300 cursor-pointer">
+                  <input
+                    checked={loopSelection}
+                    className="h-3.5 w-3.5 accent-cyan-300 rounded"
+                    onChange={(event) => setLoopSelection(event.target.checked)}
+                    type="checkbox"
+                  />
+                  <span>Lặp lại (Loop)</span>
+                </label>
+              </div>
+
+              <div className="text-xs text-neutral-400">
+                Khoảng phát: <span className="font-semibold text-cyan-200">{formatTimestamp(selection[0])}</span> - <span className="font-semibold text-cyan-200">{formatTimestamp(selection[1])}</span>
+              </div>
             </div>
 
             <TimelineEditor
@@ -358,6 +472,21 @@ export default function VideoProcessor() {
               <span>Tắt âm thanh gốc</span>
             </label>
 
+            {isSameFormat && (
+              <label className="mt-2 flex items-center gap-3 rounded-md bg-neutral-950 p-3 text-sm text-neutral-300 cursor-pointer">
+                <input
+                  checked={useFastCut}
+                  className="h-4 w-4 accent-cyan-300"
+                  onChange={(event) => setUseFastCut(event.target.checked)}
+                  type="checkbox"
+                />
+                <div className="flex flex-col">
+                  <span className="font-semibold text-cyan-200">Cắt nhanh (Fast Cut)</span>
+                  <span className="text-[10px] text-neutral-400 leading-tight mt-0.5">Không mã hóa lại, nhanh hơn 100 lần</span>
+                </div>
+              </label>
+            )}
+
             <div className="mt-4 rounded-md bg-neutral-950 p-3 text-sm text-neutral-300">
               <div className="flex items-center justify-between">
                 <span>Start</span>
@@ -392,7 +521,7 @@ export default function VideoProcessor() {
         type="file"
       />
 
-      <StatusPanel error={error} message={message} progress={progress} status={status} />
+      <StatusPanel error={error} warning={videoWarning} message={message} progress={progress} status={status} />
 
       {result ? (
         <div className="mt-4 flex flex-col gap-3 rounded-lg border border-emerald-400/20 bg-emerald-400/10 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -594,15 +723,26 @@ function TimelineEditor({
           style={{ left: `${endPercent}%` }}
           type="button"
         />
-        <span
+        {/* Tooltip Start */}
+        <div
           className={[
-            "pointer-events-none absolute -top-1 -translate-x-1/2 rounded bg-neutral-800 px-2 py-1 text-xs font-medium text-white shadow",
-            activeHandle === "end" ? "z-20" : "z-10",
+            "pointer-events-none absolute -top-9 -translate-x-1/2 rounded bg-cyan-300 px-2 py-0.5 text-[10px] font-bold text-neutral-950 shadow-md transition-all duration-75 after:content-[''] after:absolute after:bottom-[-4px] after:left-1/2 after:-translate-x-1/2 after:border-4 after:border-transparent after:border-t-cyan-300",
+            activeHandle === "start" ? "scale-110 ring-2 ring-cyan-200/50" : "opacity-80",
           ].join(" ")}
-          style={{ left: `${activeHandle === "end" ? endPercent : startPercent}%` }}
+          style={{ left: `${startPercent}%` }}
         >
-          {formatTimestamp(activeHandle === "end" ? endTime : startTime)}
-        </span>
+          {formatTimestamp(startTime)}
+        </div>
+        {/* Tooltip End */}
+        <div
+          className={[
+            "pointer-events-none absolute -top-9 -translate-x-1/2 rounded bg-cyan-300 px-2 py-0.5 text-[10px] font-bold text-neutral-950 shadow-md transition-all duration-75 after:content-[''] after:absolute after:bottom-[-4px] after:left-1/2 after:-translate-x-1/2 after:border-4 after:border-transparent after:border-t-cyan-300",
+            activeHandle === "end" ? "scale-110 ring-2 ring-cyan-200/50" : "opacity-80",
+          ].join(" ")}
+          style={{ left: `${endPercent}%` }}
+        >
+          {formatTimestamp(endTime)}
+        </div>
       </div>
 
       <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
@@ -616,11 +756,13 @@ function TimelineEditor({
 
 function StatusPanel({
   error,
+  warning,
   message,
   progress,
   status,
 }: {
   error: string | null;
+  warning?: string | null;
   message: string;
   progress: number;
   status: ProcessorStatus;
@@ -643,6 +785,11 @@ function StatusPanel({
       {error ? (
         <p className="mt-4 rounded-md border border-red-400/30 bg-red-400/10 px-3 py-2 text-sm text-red-200">
           {error}
+        </p>
+      ) : null}
+      {warning ? (
+        <p className="mt-4 rounded-md border border-yellow-400/30 bg-yellow-400/10 px-3 py-2 text-sm text-yellow-200">
+          {warning}
         </p>
       ) : null}
     </div>
@@ -674,6 +821,7 @@ function buildFFmpegArgs({
   outputFormat,
   startTime,
   endTime,
+  useFastCut,
 }: {
   inputName: string;
   muteAudio: boolean;
@@ -681,8 +829,23 @@ function buildFFmpegArgs({
   outputFormat: OutputFormat;
   startTime: number;
   endTime: number;
+  useFastCut: boolean;
 }) {
   const args = ["-ss", startTime.toFixed(2), "-i", inputName, "-t", (endTime - startTime).toFixed(2)];
+
+  if (useFastCut) {
+    args.push("-c:v", "copy");
+    if (muteAudio) {
+      args.push("-an");
+    } else {
+      args.push("-c:a", "copy");
+    }
+    if (outputFormat === "mp4") {
+      args.push("-movflags", "faststart");
+    }
+    args.push("-f", outputFormat, outputName);
+    return args;
+  }
 
   if (outputFormat === "mp3") {
     args.push("-vn", "-acodec", "libmp3lame", "-b:a", "192k", "-f", "mp3", outputName);
@@ -793,6 +956,32 @@ function VideoIcon() {
     >
       <path d="m15 10 4.5-2.5v9L15 14" />
       <rect height="12" rx="2" width="13" x="3" y="6" />
+    </svg>
+  );
+}
+
+function PlayIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4"
+      fill="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path d="M8 5v14l11-7z" />
+    </svg>
+  );
+}
+
+function PauseIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4"
+      fill="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
     </svg>
   );
 }

@@ -57,6 +57,11 @@ export default function ImageProcessor({ mode = "compress" }: ImageProcessorProp
   const inputRef = useRef<HTMLInputElement>(null);
   const objectUrlsRef = useRef<Set<string>>(new Set());
 
+  // Cấu hình nén ảnh
+  const [quality, setQuality] = useState(80);
+  const [maxWidthHeight, setMaxWidthHeight] = useState<number | "original">("original");
+  const [outputFormat, setOutputFormat] = useState<"original" | "image/jpeg" | "image/png" | "image/webp">("original");
+
   useEffect(() => {
     const objectUrls = objectUrlsRef.current;
 
@@ -98,9 +103,15 @@ export default function ImageProcessor({ mode = "compress" }: ImageProcessorProp
             const outputFile =
               mode === "metadata"
                 ? await clearMetadataFile(queuedItem.originalFile)
-                : await compressImageFile(queuedItem.originalFile, (progress) => {
-                    updateImageItem(queuedItem.id, { progress });
-                  });
+                : await compressImageFile(
+                    queuedItem.originalFile,
+                    quality,
+                    maxWidthHeight,
+                    outputFormat,
+                    (progress) => {
+                      updateImageItem(queuedItem.id, { progress });
+                    }
+                  );
             const downloadUrl = URL.createObjectURL(outputFile);
             objectUrlsRef.current.add(downloadUrl);
 
@@ -126,7 +137,7 @@ export default function ImageProcessor({ mode = "compress" }: ImageProcessorProp
         }),
       );
     },
-    [mode, updateImageItem],
+    [mode, updateImageItem, quality, maxWidthHeight, outputFormat],
   );
 
   const clearMetadata = useCallback(async (item: ProcessedImage) => {
@@ -193,6 +204,59 @@ export default function ImageProcessor({ mode = "compress" }: ImageProcessorProp
 
   return (
     <section className="rounded-lg border border-white/10 bg-neutral-900/80 p-4 sm:p-6">
+      {mode === "compress" && (
+        <div className="mb-5 rounded-lg border border-white/10 bg-neutral-950 p-4 shadow-inner">
+          <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+            <SettingsIcon /> Cấu hình nén ảnh
+          </h3>
+          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+            <div>
+              <label className="flex justify-between text-xs text-neutral-400 mb-2">
+                <span>Chất lượng (Quality)</span>
+                <span className="font-semibold text-cyan-300">{quality}%</span>
+              </label>
+              <input
+                type="range"
+                min="10"
+                max="100"
+                value={quality}
+                onChange={(e) => setQuality(Number(e.target.value))}
+                className="w-full h-1.5 bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-cyan-300"
+              />
+            </div>
+            
+            <div>
+              <label className="text-xs text-neutral-400 block mb-2">Kích thước ảnh tối đa</label>
+              <select
+                value={maxWidthHeight}
+                onChange={(e) => setMaxWidthHeight(e.target.value === "original" ? "original" : Number(e.target.value))}
+                className="w-full rounded-md border border-white/10 bg-neutral-900 px-3 py-1.5 text-xs text-white outline-none focus:border-cyan-300 focus:ring-1 focus:ring-cyan-300"
+              >
+                <option value="original">Giữ nguyên độ phân giải</option>
+                <option value="3840">4K UHD (3840px)</option>
+                <option value="2048">2K (2048px)</option>
+                <option value="1920">Full HD 1080p (1920px)</option>
+                <option value="1280">HD 720p (1280px)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs text-neutral-400 block mb-2">Định dạng xuất</label>
+              <select
+                value={outputFormat}
+                onChange={(e) => setOutputFormat(e.target.value as any)}
+                className="w-full rounded-md border border-white/10 bg-neutral-900 px-3 py-1.5 text-xs text-white outline-none focus:border-cyan-300 focus:ring-1 focus:ring-cyan-300"
+              >
+                <option value="original">Giữ nguyên định dạng gốc</option>
+                <option value="image/webp">Chuyển sang WebP (Khuyên dùng)</option>
+                <option value="image/jpeg">Chuyển sang JPEG</option>
+                <option value="image/png">Chuyển sang PNG</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div
         className={[
           "flex min-h-[300px] flex-col items-center justify-center rounded-lg border border-dashed p-6 text-center transition sm:min-h-[360px]",
@@ -277,7 +341,23 @@ export default function ImageProcessor({ mode = "compress" }: ImageProcessorProp
                     </h4>
                     <p className="mt-1 text-xs text-neutral-500">
                       Gốc {formatBytes(item.originalSize)}
-                      {item.outputSize ? ` -> ${formatBytes(item.outputSize)}` : ""}
+                      {item.outputSize ? (
+                        <>
+                          {" -> "}{formatBytes(item.outputSize)}
+                          {" • "}
+                          {(() => {
+                            const diff = item.originalSize - item.outputSize;
+                            const percent = Math.round((diff / item.originalSize) * 100);
+                            if (percent > 0) {
+                              return <span className="text-emerald-400 font-medium">Giảm {percent}%</span>;
+                            } else if (percent < 0) {
+                              return <span className="text-amber-400 font-medium">Tăng {Math.abs(percent)}%</span>;
+                            } else {
+                              return <span className="text-neutral-400">Không đổi</span>;
+                            }
+                          })()}
+                        </>
+                      ) : null}
                     </p>
                   </div>
 
@@ -384,21 +464,133 @@ function UploadIcon() {
   );
 }
 
-async function compressImageFile(file: File, onProgress: (progress: number) => void) {
-  return imageCompression(file, {
-    maxSizeMB: MAX_SIZE_MB,
-    maxWidthOrHeight: MAX_WIDTH_OR_HEIGHT,
+async function compressImageFile(
+  file: File,
+  quality: number,
+  maxWidthHeight: number | "original",
+  format: "original" | "image/jpeg" | "image/png" | "image/webp",
+  onProgress: (progress: number) => void
+) {
+  const options: any = {
+    maxSizeMB: 30, // Đặt giới hạn dung lượng lớn để nén theo chất lượng
+    initialQuality: quality / 100,
     preserveExif: false,
     useWebWorker: false,
     onProgress,
+  };
+
+  if (maxWidthHeight !== "original") {
+    options.maxWidthOrHeight = maxWidthHeight;
+  } else {
+    options.alwaysKeepResolution = true;
+  }
+
+  if (format !== "original") {
+    options.fileType = format;
+  }
+
+  const cleanFile = await imageCompression(file, options);
+
+  let outputName = file.name;
+  if (format !== "original") {
+    const ext = format.split("/")[1];
+    const lastDotIndex = outputName.lastIndexOf(".");
+    const extStr = ext === "jpeg" ? "jpg" : ext;
+    if (lastDotIndex <= 0) {
+      outputName = `${outputName}.${extStr}`;
+    } else {
+      outputName = `${outputName.slice(0, lastDotIndex)}.${extStr}`;
+    }
+  }
+
+  return new File([cleanFile], withSuffix(outputName, "compressed"), {
+    type: cleanFile.type || file.type,
+    lastModified: Date.now(),
   });
+}
+
+function stripJpegExif(arrayBuffer: ArrayBuffer): ArrayBuffer {
+  const view = new DataView(arrayBuffer);
+  if (view.byteLength < 4 || view.getUint16(0, false) !== 0xFFD8) {
+    return arrayBuffer; // Không phải JPEG
+  }
+
+  let offset = 2;
+  const length = view.byteLength;
+  const segmentsToKeep: { start: number; end: number }[] = [{ start: 0, end: 2 }];
+
+  while (offset < length) {
+    if (offset + 1 >= length) break;
+    if (view.getUint8(offset) !== 0xFF) {
+      return arrayBuffer; // Lỗi định dạng marker, trả về gốc để an toàn
+    }
+
+    const marker = view.getUint8(offset + 1);
+    
+    // SOS (Start of Scan) - phần dữ liệu ảnh nén bắt đầu từ đây, dừng tìm metadata
+    if (marker === 0xDA) {
+      segmentsToKeep.push({ start: offset, end: length });
+      break;
+    }
+
+    // EOI (End of Image)
+    if (marker === 0xD9) {
+      segmentsToKeep.push({ start: offset, end: offset + 2 });
+      offset += 2;
+      continue;
+    }
+
+    if (offset + 3 >= length) break;
+    const segmentLength = view.getUint16(offset + 2, false);
+    const segmentEnd = offset + 2 + segmentLength;
+
+    if (segmentEnd > length) {
+      return arrayBuffer; // File bị lỗi, trả về gốc
+    }
+
+    // APP1 (0xE1) chứa Exif/GPS/XMP và APP13 (0xED) chứa IPTC
+    if (marker === 0xE1 || marker === 0xED) {
+      // Bỏ qua không thêm vào segmentsToKeep
+    } else {
+      segmentsToKeep.push({ start: offset, end: segmentEnd });
+    }
+
+    offset = segmentEnd;
+  }
+
+  let totalLength = 0;
+  segmentsToKeep.forEach((seg) => {
+    totalLength += seg.end - seg.start;
+  });
+
+  const cleanBuffer = new ArrayBuffer(totalLength);
+  const cleanView = new Uint8Array(cleanBuffer);
+  const originalView = new Uint8Array(arrayBuffer);
+  let currentOffset = 0;
+
+  segmentsToKeep.forEach((seg) => {
+    cleanView.set(originalView.subarray(seg.start, seg.end), currentOffset);
+    currentOffset += seg.end - seg.start;
+  });
+
+  return cleanBuffer;
 }
 
 async function clearMetadataFile(file: File) {
   try {
+    if (file.type === "image/jpeg" || file.type === "image/jpg") {
+      const buffer = await file.arrayBuffer();
+      const cleanBuffer = stripJpegExif(buffer);
+      return new File([cleanBuffer], withSuffix(file.name, "private"), {
+        type: file.type,
+        lastModified: Date.now(),
+      });
+    }
+
+    // Fallback cho PNG/WebP dùng browser-image-compression
     const cleanFile = await imageCompression(file, {
       alwaysKeepResolution: true,
-      initialQuality: 0.96,
+      initialQuality: 0.98,
       maxIteration: 1,
       maxSizeMB: Math.max(file.size / 1024 / 1024 + 1, 4),
       preserveExif: false,
@@ -414,6 +606,23 @@ async function clearMetadataFile(file: File) {
       "Không thể xóa metadata. Ảnh có thể bị hỏng hoặc định dạng này chưa được trình duyệt hỗ trợ.",
     );
   }
+}
+
+function SettingsIcon() {
+  return (
+    <svg
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+      className="h-4 w-4 text-cyan-300"
+    >
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  );
 }
 
 async function readExifSummary(file: File): Promise<ExifSummary> {

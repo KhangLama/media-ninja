@@ -154,7 +154,11 @@ function ToolWorkspace({
           ))}
         </div>
 
-        {activeToolId === "video" ? <VideoProcessor /> : <ImageProcessor mode={activeToolId} />}
+        {activeToolId === "video" ? (
+          <VideoProcessor />
+        ) : (
+          <ImageProcessor key={activeToolId} mode={activeToolId} />
+        )}
       </div>
     </section>
   );
