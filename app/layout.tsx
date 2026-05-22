@@ -73,6 +73,9 @@ export const metadata: Metadata = {
       "en-US": `${SITE_URL}?lang=en`,
     },
   },
+  verification: {
+    google: "e95ca6b49c6191fb",
+  },
 };
 
 export default function RootLayout({
