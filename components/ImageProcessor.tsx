@@ -1,7 +1,7 @@
 "use client";
 
 import EXIF from "exif-js";
-import imageCompression from "browser-image-compression";
+import imageCompression, { Options } from "browser-image-compression";
 import JSZip from "jszip";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLanguage } from "@/components/LanguageContext";
@@ -381,6 +381,7 @@ export default function ImageProcessor() {
 
                     <div className="relative aspect-[16/10] w-full bg-neutral-900 overflow-hidden">
                       {item.originalPreviewUrl ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
                         <img
                           src={item.originalPreviewUrl}
                           alt={item.displayName}
@@ -574,7 +575,7 @@ export default function ImageProcessor() {
                 <label className="text-neutral-400 block">{t("img_side_output_fmt")}</label>
                 <select
                   value={outputFormat}
-                  onChange={(e) => setOutputFormat(e.target.value as any)}
+                  onChange={(e) => setOutputFormat(e.target.value as "original" | "image/jpeg" | "image/png" | "image/webp")}
                   className="w-full rounded-lg border border-white/10 bg-neutral-950 px-3 py-2 text-white outline-none focus:border-cyan-300/70 focus:ring-1 focus:ring-cyan-300/40"
                 >
                   <option value="original">{t("img_side_keep_fmt")}</option>
@@ -747,7 +748,7 @@ async function compressImageFile(
   preserveExif: boolean,
   onProgress: (progress: number) => void
 ) {
-  const options: any = {
+  const options: Options = {
     maxSizeMB: 30, // Đặt giới hạn dung lượng lớn để nén theo chất lượng
     initialQuality: quality / 100,
     preserveExif,

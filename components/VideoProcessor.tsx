@@ -12,6 +12,16 @@ type DragHandle = "start" | "end";
 
 type ErrorState = string | { key: string; variables?: Record<string, string | number> } | null;
 
+export type BlurBox = {
+  id: string;
+  x: number; // percentage (0-100)
+  y: number; // percentage (0-100)
+  w: number; // percentage (0-100)
+  h: number; // percentage (0-100)
+  start: number; // seconds
+  end: number; // seconds
+};
+
 type ProcessedVideo = {
   id: string;
   originalFile: File;
@@ -29,6 +39,9 @@ type ProcessedVideo = {
   downloadUrl?: string;
   error?: string | null;
   videoWarning?: string | null;
+  aspectRatio?: "original" | "9:16-center" | "9:16-left" | "9:16-right" | "1:1";
+  denoiseAudio?: boolean;
+  blurBoxes?: BlurBox[];
 };
 
 const ACCEPTED_VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm"]);
@@ -62,19 +75,9 @@ export default function VideoProcessor() {
   const [isPlayingSelection, setIsPlayingSelection] = useState(false);
   const [loopSelection, setLoopSelection] = useState(true);
 
-  // Helper track created object URLs for cleanup
-  const trackUrl = (url: string) => {
-    createdUrlsRef.current.add(url);
-  };
-
-  useEffect(() => {
-    return () => {
-      if (seekFrameRef.current) cancelAnimationFrame(seekFrameRef.current);
-      createdUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
-      createdUrlsRef.current.clear();
-      ffmpegRef.current?.terminate();
-    };
-  }, []);
+  // Crop & Blur interactive overlays
+  const [videoRect, setVideoRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const [currentTime, setCurrentTime] = useState(0);
 
   const activeVideo = useMemo(() => {
     if (activeIndex === null || activeIndex >= videos.length) return null;
@@ -86,6 +89,66 @@ export default function VideoProcessor() {
     const ext = extensionFromFile(activeVideo.originalFile);
     return ext === activeVideo.outputFormat;
   }, [activeVideo]);
+
+  const updateVideoRect = useCallback(() => {
+    const video = videoRef.current;
+    if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
+      setVideoRect(null);
+      return;
+    }
+    const containerWidth = video.clientWidth;
+    const containerHeight = video.clientHeight;
+    const videoRatio = video.videoWidth / video.videoHeight;
+    const containerRatio = containerWidth / containerHeight;
+
+    let width = containerWidth;
+    let height = containerHeight;
+    let left = 0;
+    let top = 0;
+
+    if (videoRatio > containerRatio) {
+      height = containerWidth / videoRatio;
+      top = (containerHeight - height) / 2;
+    } else {
+      width = containerHeight * videoRatio;
+      left = (containerWidth - width) / 2;
+    }
+    setVideoRect({ left, top, width, height });
+  }, []);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const handleResize = () => {
+      updateVideoRect();
+    };
+
+    window.addEventListener("resize", handleResize);
+    video.addEventListener("loadedmetadata", updateVideoRect);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      video.removeEventListener("loadedmetadata", updateVideoRect);
+    };
+  }, [activeVideo?.id, updateVideoRect]);
+
+  // Helper track created object URLs for cleanup
+  const trackUrl = (url: string) => {
+    createdUrlsRef.current.add(url);
+  };
+
+  useEffect(() => {
+    const urls = createdUrlsRef.current;
+    const ffmpeg = ffmpegRef.current;
+    return () => {
+      if (seekFrameRef.current) cancelAnimationFrame(seekFrameRef.current);
+      urls.forEach((url) => URL.revokeObjectURL(url));
+      urls.clear();
+      ffmpeg?.terminate();
+    };
+  }, []);
+
 
   const updateActiveVideo = useCallback((patch: Partial<ProcessedVideo>) => {
     if (activeIndex === null) return;
@@ -113,7 +176,11 @@ export default function VideoProcessor() {
 
   const handleTimeUpdate = useCallback(() => {
     const video = videoRef.current;
-    if (!video || !isPlayingSelection || !activeVideo) return;
+    if (!video || !activeVideo) return;
+
+    setCurrentTime(video.currentTime);
+
+    if (!isPlayingSelection) return;
 
     if (video.currentTime >= activeVideo.selection[1] || video.currentTime < activeVideo.selection[0]) {
       if (loopSelection) {
@@ -129,6 +196,100 @@ export default function VideoProcessor() {
   const handlePause = useCallback(() => {
     setIsPlayingSelection(false);
   }, []);
+
+  // Blur boxes action handlers
+  const updateBlurBox = useCallback((boxId: string, patch: Partial<BlurBox>) => {
+    if (activeIndex === null || !activeVideo || !activeVideo.blurBoxes) return;
+    const updatedBoxes = activeVideo.blurBoxes.map((box) =>
+      box.id === boxId ? { ...box, ...patch } : box
+    );
+    updateActiveVideo({ blurBoxes: updatedBoxes });
+  }, [activeIndex, activeVideo, updateActiveVideo]);
+
+  const handleBlurBoxDragStart = useCallback((e: React.PointerEvent, boxId: string) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!videoRect || !activeVideo?.blurBoxes) return;
+
+    const box = activeVideo.blurBoxes.find((b) => b.id === boxId);
+    if (!box) return;
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const initialBoxX = box.x;
+    const initialBoxY = box.y;
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      const deltaX = ((moveEvent.clientX - startX) / videoRect.width) * 100;
+      const deltaY = ((moveEvent.clientY - startY) / videoRect.height) * 100;
+
+      const nextX = clamp(initialBoxX + deltaX, 0, 100 - box.w);
+      const nextY = clamp(initialBoxY + deltaY, 0, 100 - box.h);
+
+      updateBlurBox(boxId, { x: nextX, y: nextY });
+    };
+
+    const handlePointerUp = () => {
+      document.removeEventListener("pointermove", handlePointerMove);
+      document.removeEventListener("pointerup", handlePointerUp);
+    };
+
+    document.addEventListener("pointermove", handlePointerMove);
+    document.addEventListener("pointerup", handlePointerUp);
+  }, [videoRect, activeVideo, updateBlurBox]);
+
+  const handleBlurBoxResizeStart = useCallback((e: React.PointerEvent, boxId: string) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!videoRect || !activeVideo?.blurBoxes) return;
+
+    const box = activeVideo.blurBoxes.find((b) => b.id === boxId);
+    if (!box) return;
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const initialW = box.w;
+    const initialH = box.h;
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      const deltaX = ((moveEvent.clientX - startX) / videoRect.width) * 100;
+      const deltaY = ((moveEvent.clientY - startY) / videoRect.height) * 100;
+
+      const nextW = clamp(initialW + deltaX, 5, 100 - box.x);
+      const nextH = clamp(initialH + deltaY, 5, 100 - box.y);
+
+      updateBlurBox(boxId, { w: nextW, h: nextH });
+    };
+
+    const handlePointerUp = () => {
+      document.removeEventListener("pointermove", handlePointerMove);
+      document.removeEventListener("pointerup", handlePointerUp);
+    };
+
+    document.addEventListener("pointermove", handlePointerMove);
+    document.addEventListener("pointerup", handlePointerUp);
+  }, [videoRect, activeVideo, updateBlurBox]);
+
+  const addBlurBox = useCallback(() => {
+    if (!activeVideo) return;
+    const newBox: BlurBox = {
+      id: crypto.randomUUID(),
+      x: 25,
+      y: 25,
+      w: 30,
+      h: 30,
+      start: activeVideo.selection[0],
+      end: activeVideo.selection[1],
+    };
+    const updatedBoxes = [...(activeVideo.blurBoxes || []), newBox];
+    updateActiveVideo({ blurBoxes: updatedBoxes });
+  }, [activeVideo, updateActiveVideo]);
+
+  const removeBlurBox = useCallback((boxId: string) => {
+    if (!activeVideo || !activeVideo.blurBoxes) return;
+    const updatedBoxes = activeVideo.blurBoxes.filter((box) => box.id !== boxId);
+    updateActiveVideo({ blurBoxes: updatedBoxes });
+  }, [activeVideo, updateActiveVideo]);
 
   const clipDuration = useMemo(() => {
     if (!activeVideo) return 0;
@@ -241,6 +402,9 @@ export default function VideoProcessor() {
           muteAudio: false,
           useFastCut: true,
           videoWarning,
+          aspectRatio: "original",
+          denoiseAudio: false,
+          blurBoxes: [],
         });
       }
 
@@ -381,7 +545,8 @@ export default function VideoProcessor() {
           await ffmpeg.writeFile(inputName, await fetchFile(video.originalFile));
 
           const isSameExt = ext === video.outputFormat;
-          const isFastCutActive = isSameExt && video.useFastCut;
+          const hasFilters = (video.aspectRatio && video.aspectRatio !== "original") || video.denoiseAudio || (video.blurBoxes && video.blurBoxes.length > 0);
+          const isFastCutActive = isSameExt && video.useFastCut && !hasFilters;
 
           const args = buildFFmpegArgs({
             inputName,
@@ -391,6 +556,9 @@ export default function VideoProcessor() {
             startTime: video.selection[0],
             endTime: video.selection[1],
             useFastCut: isFastCutActive,
+            aspectRatio: video.aspectRatio,
+            denoiseAudio: video.denoiseAudio,
+            blurBoxes: video.blurBoxes,
           });
 
           const exitCode = await ffmpeg.exec(args);
@@ -486,6 +654,40 @@ export default function VideoProcessor() {
   const currentProcessingVideo = useMemo(() => {
     return videos.find((v) => v.status === "processing");
   }, [videos]);
+
+  const getCropOverlayStyle = useCallback(() => {
+    if (!videoRect || !activeVideo?.aspectRatio || activeVideo.aspectRatio === "original") return {};
+
+    const { left, top, width, height } = videoRect;
+    let cropWidth = width;
+    let cropHeight = height;
+    let cropLeft = left;
+    let cropTop = top;
+
+    if (activeVideo.aspectRatio === "9:16-center") {
+      cropWidth = height * 9 / 16;
+      cropLeft = left + (width - cropWidth) / 2;
+    } else if (activeVideo.aspectRatio === "9:16-left") {
+      cropWidth = height * 9 / 16;
+      cropLeft = left;
+    } else if (activeVideo.aspectRatio === "9:16-right") {
+      cropWidth = height * 9 / 16;
+      cropLeft = left + width - cropWidth;
+    } else if (activeVideo.aspectRatio === "1:1") {
+      const minDim = Math.min(width, height);
+      cropWidth = minDim;
+      cropHeight = minDim;
+      cropLeft = left + (width - minDim) / 2;
+      cropTop = top + (height - minDim) / 2;
+    }
+
+    return {
+      left: `${cropLeft}px`,
+      top: `${cropTop}px`,
+      width: `${cropWidth}px`,
+      height: `${cropHeight}px`,
+    };
+  }, [videoRect, activeVideo]);
 
   const renderError = (err: ErrorState) => {
     if (!err) return null;
@@ -684,7 +886,7 @@ export default function VideoProcessor() {
             {activeVideo ? (
               <div className="grid gap-5 xl:grid-cols-[1fr_240px]">
                 <div className="min-w-0">
-                  <div className="mx-auto max-w-3xl overflow-hidden rounded-lg border border-white/10 bg-black">
+                  <div className="relative mx-auto max-w-3xl overflow-hidden rounded-lg border border-white/10 bg-black">
                     <video
                       key={activeVideo.id}
                       className="aspect-video w-full bg-black object-contain"
@@ -695,6 +897,62 @@ export default function VideoProcessor() {
                       ref={videoRef}
                       src={activeVideo.previewUrl}
                     />
+
+                    {/* Crop Overlay */}
+                    {videoRect && activeVideo.aspectRatio && activeVideo.aspectRatio !== "original" && (
+                      <div
+                        className="absolute pointer-events-none border-2 border-dashed border-cyan-300 shadow-[0_0_0_9999px_rgba(0,0,0,0.6)] z-10"
+                        style={getCropOverlayStyle()}
+                      />
+                    )}
+
+                    {/* Blur Boxes Overlay */}
+                    {videoRect && (
+                      <div
+                        className="absolute pointer-events-none"
+                        style={{
+                          left: `${videoRect.left}px`,
+                          top: `${videoRect.top}px`,
+                          width: `${videoRect.width}px`,
+                          height: `${videoRect.height}px`,
+                          zIndex: 20,
+                        }}
+                      >
+                        {activeVideo.blurBoxes?.map((box, index) => {
+                          const isActive = currentTime >= box.start && currentTime <= box.end;
+                          return (
+                            <div
+                              key={box.id}
+                              className={[
+                                "absolute pointer-events-auto border group select-none transition-colors",
+                                isActive
+                                  ? "border-cyan-400 bg-cyan-400/20 backdrop-blur-[8px]"
+                                  : "border-red-400/40 bg-red-400/5 opacity-60 border-dashed",
+                              ].join(" ")}
+                              style={{
+                                left: `${box.x}%`,
+                                top: `${box.y}%`,
+                                width: `${box.w}%`,
+                                height: `${box.h}%`,
+                                cursor: "move",
+                              }}
+                              onPointerDown={(e) => handleBlurBoxDragStart(e, box.id)}
+                            >
+                              {/* Label */}
+                              <div className="absolute top-1 left-1 bg-neutral-900/80 px-1.5 py-0.5 rounded text-[8px] font-mono font-bold text-white pointer-events-none">
+                                {index + 1}
+                              </div>
+
+                              {/* Resize Handle at Bottom-Right */}
+                              <div
+                                className="absolute bottom-0 right-0 h-3.5 w-3.5 bg-cyan-400 cursor-se-resize flex items-center justify-center rounded-tl-sm border-t border-l border-white/20 hover:scale-110 active:scale-95 transition-transform"
+                                onPointerDown={(e) => handleBlurBoxResizeStart(e, box.id)}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
                   {/* Play Selection Controls */}
@@ -783,67 +1041,203 @@ export default function VideoProcessor() {
                   )}
                 </div>
 
-                <aside className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-                  <h3 className="text-sm font-semibold text-white">{t("vid_config_title")}</h3>
+                <aside className="rounded-lg border border-white/10 bg-white/[0.03] p-4 flex flex-col gap-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">{t("vid_config_title")}</h3>
 
-                  <div className="mt-4">
-                    <label className="text-xs font-medium text-neutral-300" htmlFor="output-format">
-                      {t("vid_config_format")}
-                    </label>
-                    <select
-                      className="mt-2 w-full rounded-md border border-white/10 bg-neutral-950 px-3 py-2 text-xs text-white outline-none focus:border-cyan-300"
-                      id="output-format"
-                      disabled={isProcessingQueue}
-                      onChange={(event) => {
-                        const nextFormat = event.target.value as OutputFormat;
-                        handleFormatChange(nextFormat);
-                      }}
-                      value={activeVideo.outputFormat}
-                    >
-                      <option value="mp4">MP4</option>
-                      <option value="webm">WebM</option>
-                      <option value="gif">GIF {language === "vi" ? "(Tạo ảnh động)" : "(Animated)"}</option>
-                      <option value="mp3">MP3 {language === "vi" ? "(Chỉ lấy âm thanh)" : "(Audio only)"}</option>
-                    </select>
-                  </div>
-
-                  <label className="mt-4 flex items-center gap-3 rounded-md bg-neutral-950 p-3 text-xs text-neutral-300 cursor-pointer">
-                    <input
-                      checked={activeVideo.muteAudio}
-                      className="h-4 w-4 accent-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={activeVideo.outputFormat === "mp3" || isProcessingQueue}
-                      onChange={(event) => handleMuteChange(event.target.checked)}
-                      type="checkbox"
-                    />
-                    <span>{t("vid_config_mute")}</span>
-                  </label>
-
-                  {isSameFormat && (
-                    <label className="mt-2 flex items-center gap-3 rounded-md bg-neutral-950 p-3 text-xs text-neutral-300 cursor-pointer">
-                      <input
-                        checked={activeVideo.useFastCut}
-                        className="h-4 w-4 accent-cyan-300"
+                    <div className="mt-4">
+                      <label className="text-xs font-medium text-neutral-300" htmlFor="output-format">
+                        {t("vid_config_format")}
+                      </label>
+                      <select
+                        className="mt-2 w-full rounded-md border border-white/10 bg-neutral-950 px-3 py-2 text-xs text-white outline-none focus:border-cyan-300"
+                        id="output-format"
                         disabled={isProcessingQueue}
-                        onChange={(event) => handleFastCutChange(event.target.checked)}
-                        type="checkbox"
-                      />
-                      <div className="flex flex-col">
-                        <span className="font-semibold text-cyan-200 text-xs">{t("vid_config_fast_cut")}</span>
-                        <span className="text-[9px] text-neutral-400 leading-tight mt-0.5">{t("vid_config_fast_cut_desc")}</span>
-                      </div>
-                    </label>
-                  )}
-
-                  <div className="mt-4 rounded-md bg-neutral-950 p-3 text-xs text-neutral-300">
-                    <div className="flex items-center justify-between">
-                      <span>{t("vid_config_start")}</span>
-                      <span className="font-medium text-white">{formatTimestamp(activeVideo.selection[0])}</span>
+                        onChange={(event) => {
+                          const nextFormat = event.target.value as OutputFormat;
+                          handleFormatChange(nextFormat);
+                        }}
+                        value={activeVideo.outputFormat}
+                      >
+                        <option value="mp4">MP4</option>
+                        <option value="webm">WebM</option>
+                        <option value="gif">GIF {language === "vi" ? "(Tạo ảnh động)" : "(Animated)"}</option>
+                        <option value="mp3">MP3 {language === "vi" ? "(Chỉ lấy âm thanh)" : "(Audio only)"}</option>
+                      </select>
                     </div>
-                    <div className="mt-2 flex items-center justify-between">
-                      <span>{t("vid_config_end")}</span>
-                      <span className="font-medium text-white">{formatTimestamp(activeVideo.selection[1])}</span>
+
+                    {/* Aspect Ratio (Crop) dropdown */}
+                    {activeVideo.outputFormat !== "mp3" && (
+                      <div className="mt-4">
+                        <label className="text-xs font-medium text-neutral-300" htmlFor="aspect-ratio">
+                          {t("vid_config_crop")}
+                        </label>
+                        <select
+                          className="mt-2 w-full rounded-md border border-white/10 bg-neutral-950 px-3 py-2 text-xs text-white outline-none focus:border-cyan-300"
+                          id="aspect-ratio"
+                          disabled={isProcessingQueue}
+                          onChange={(event) => {
+                            updateActiveVideo({
+                              aspectRatio: event.target.value as ProcessedVideo["aspectRatio"]
+                            });
+                          }}
+                          value={activeVideo.aspectRatio || "original"}
+                        >
+                          <option value="original">{t("vid_config_crop_original")}</option>
+                          <option value="9:16-center">{t("vid_config_crop_916_center")}</option>
+                          <option value="9:16-left">{t("vid_config_crop_916_left")}</option>
+                          <option value="9:16-right">{t("vid_config_crop_916_right")}</option>
+                          <option value="1:1">{t("vid_config_crop_11")}</option>
+                        </select>
+                      </div>
+                    )}
+
+                    {activeVideo.outputFormat !== "mp3" && (
+                      <label className="mt-4 flex items-center gap-3 rounded-md bg-neutral-950 p-3 text-xs text-neutral-300 cursor-pointer">
+                        <input
+                          checked={activeVideo.muteAudio}
+                          className="h-4 w-4 accent-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={isProcessingQueue}
+                          onChange={(event) => handleMuteChange(event.target.checked)}
+                          type="checkbox"
+                        />
+                        <span>{t("vid_config_mute")}</span>
+                      </label>
+                    )}
+
+                    {/* Audio Denoise checkbox */}
+                    {activeVideo.outputFormat !== "gif" && (
+                      <label className="mt-2 flex items-center gap-3 rounded-md bg-neutral-950 p-3 text-xs text-neutral-300 cursor-pointer">
+                        <input
+                          checked={!!activeVideo.denoiseAudio}
+                          className="h-4 w-4 accent-cyan-300"
+                          disabled={isProcessingQueue}
+                          onChange={(event) => updateActiveVideo({ denoiseAudio: event.target.checked })}
+                          type="checkbox"
+                        />
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-xs text-cyan-200">{t("vid_config_denoise")}</span>
+                          <span className="text-[9px] text-neutral-400 leading-tight mt-0.5">{t("vid_config_denoise_desc")}</span>
+                        </div>
+                      </label>
+                    )}
+
+                    {/* Fast Cut configuration */}
+                    {isSameFormat && (
+                      <div className="mt-2">
+                        <label className={[
+                          "flex items-center gap-3 rounded-md bg-neutral-950 p-3 text-xs text-neutral-300",
+                          ((activeVideo.aspectRatio && activeVideo.aspectRatio !== "original") || activeVideo.denoiseAudio || (activeVideo.blurBoxes && activeVideo.blurBoxes.length > 0))
+                            ? "cursor-not-allowed opacity-50"
+                            : "cursor-pointer"
+                        ].join(" ")}>
+                          <input
+                            checked={!((activeVideo.aspectRatio && activeVideo.aspectRatio !== "original") || activeVideo.denoiseAudio || (activeVideo.blurBoxes && activeVideo.blurBoxes.length > 0)) && activeVideo.useFastCut}
+                            className="h-4 w-4 accent-cyan-300"
+                            disabled={isProcessingQueue || ((activeVideo.aspectRatio && activeVideo.aspectRatio !== "original") || activeVideo.denoiseAudio || (activeVideo.blurBoxes && activeVideo.blurBoxes.length > 0))}
+                            onChange={(event) => handleFastCutChange(event.target.checked)}
+                            type="checkbox"
+                          />
+                          <div className="flex flex-col">
+                            <span className="font-semibold text-cyan-200 text-xs">{t("vid_config_fast_cut")}</span>
+                            <span className="text-[9px] text-neutral-400 leading-tight mt-0.5">{t("vid_config_fast_cut_desc")}</span>
+                          </div>
+                        </label>
+                        {((activeVideo.aspectRatio && activeVideo.aspectRatio !== "original") || activeVideo.denoiseAudio || (activeVideo.blurBoxes && activeVideo.blurBoxes.length > 0)) && (
+                          <p className="mt-1 text-[10px] text-red-400 leading-tight">
+                            {t("vid_config_fast_cut_disabled")}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="mt-4 rounded-md bg-neutral-950 p-3 text-xs text-neutral-300">
+                      <div className="flex items-center justify-between">
+                        <span>{t("vid_config_start")}</span>
+                        <span className="font-medium text-white">{formatTimestamp(activeVideo.selection[0])}</span>
+                      </div>
+                      <div className="mt-2 flex items-center justify-between">
+                        <span>{t("vid_config_end")}</span>
+                        <span className="font-medium text-white">{formatTimestamp(activeVideo.selection[1])}</span>
+                      </div>
                     </div>
                   </div>
+
+                  {/* Redaction / Blur Boxes control panel section */}
+                  {activeVideo.outputFormat !== "mp3" && (
+                    <div className="border-t border-white/10 pt-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold text-neutral-300 uppercase tracking-wider">{t("vid_blur_title")}</h4>
+                        <button
+                          type="button"
+                          disabled={isProcessingQueue}
+                          onClick={addBlurBox}
+                          className="rounded bg-cyan-300/10 px-2 py-1 text-[10px] font-semibold text-cyan-300 hover:bg-cyan-300/20 transition cursor-pointer disabled:opacity-50"
+                        >
+                          + {t("vid_blur_add_btn")}
+                        </button>
+                      </div>
+
+                      <p className="mt-1.5 text-[9px] text-neutral-500 leading-normal">{t("vid_blur_helper")}</p>
+
+                      <div className="mt-3 space-y-3 max-h-[220px] overflow-y-auto pr-1 custom-scrollbar">
+                        {!activeVideo.blurBoxes || activeVideo.blurBoxes.length === 0 ? (
+                          <p className="text-[10px] text-neutral-500 italic text-center py-2">{t("vid_blur_empty")}</p>
+                        ) : (
+                          activeVideo.blurBoxes.map((box, index) => (
+                            <div key={box.id} className="rounded-md bg-neutral-950 p-2 border border-white/5 relative">
+                              <div className="flex items-center justify-between text-[10px] font-semibold text-neutral-300 mb-1">
+                                <span>{t("vid_blur_box_label", { index: index + 1 })}</span>
+                                <button
+                                  type="button"
+                                  disabled={isProcessingQueue}
+                                  onClick={() => removeBlurBox(box.id)}
+                                  className="text-red-400 hover:text-red-300 transition cursor-pointer disabled:opacity-50"
+                                >
+                                  {t("vid_blur_remove_btn")}
+                                </button>
+                              </div>
+                              
+                              <div className="grid grid-cols-2 gap-1.5 mt-1.5">
+                                <div>
+                                  <label className="text-[9px] text-neutral-400">{t("vid_blur_start_time")}</label>
+                                  <input
+                                    type="number"
+                                    step="0.1"
+                                    min="0"
+                                    max={activeVideo.duration}
+                                    disabled={isProcessingQueue}
+                                    value={Number(box.start.toFixed(1))}
+                                    onChange={(e) => {
+                                      const val = Math.max(0, Math.min(activeVideo.duration, parseFloat(e.target.value) || 0));
+                                      updateBlurBox(box.id, { start: val });
+                                    }}
+                                    className="w-full rounded bg-neutral-900 border border-white/10 px-1 py-0.5 text-[10px] text-white outline-none focus:border-cyan-300"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[9px] text-neutral-400">{t("vid_blur_end_time")}</label>
+                                  <input
+                                    type="number"
+                                    step="0.1"
+                                    min="0"
+                                    max={activeVideo.duration}
+                                    disabled={isProcessingQueue}
+                                    value={Number(box.end.toFixed(1))}
+                                    onChange={(e) => {
+                                      const val = Math.max(0, Math.min(activeVideo.duration, parseFloat(e.target.value) || 0));
+                                      updateBlurBox(box.id, { end: val });
+                                    }}
+                                    className="w-full rounded bg-neutral-900 border border-white/10 px-1 py-0.5 text-[10px] text-white outline-none focus:border-cyan-300"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </aside>
               </div>
             ) : (
@@ -1151,6 +1545,61 @@ function StatusPanel({
   );
 }
 
+function buildVideoFilters(aspectRatio: string = "original", blurBoxes: BlurBox[] = []) {
+  if (aspectRatio === "original" && blurBoxes.length === 0) {
+    return null;
+  }
+
+  let filterComplex = "";
+  let lastLabel = "[0:v]";
+
+  // 1. Process all blur boxes
+  if (blurBoxes.length > 0) {
+    blurBoxes.forEach((box, index) => {
+      const nextLabel = `[v_blur_${index}]`;
+      
+      const wExpr = `trunc((${box.w}*iw/100)/2)*2`;
+      const hExpr = `trunc((${box.h}*ih/100)/2)*2`;
+      const xExpr = `trunc((${box.x}*iw/100)/2)*2`;
+      const yExpr = `trunc((${box.y}*ih/100)/2)*2`;
+
+      // Crop the blur area, apply boxblur, overlay it back with the time enable condition
+      filterComplex += `${lastLabel}crop=${wExpr}:${hExpr}:${xExpr}:${yExpr},boxblur=25[b${index}]; `;
+      filterComplex += `${lastLabel}[b${index}]overlay=${xExpr}:${yExpr}:enable='between(t,${box.start.toFixed(2)},${box.end.toFixed(2)})'${nextLabel}; `;
+      
+      lastLabel = nextLabel;
+    });
+  }
+
+  // 2. Process crop if any
+  if (aspectRatio !== "original") {
+    let cropFilter = "";
+    if (aspectRatio === "9:16-center") {
+      cropFilter = `crop=trunc(ih*9/16/2)*2:trunc(ih/2)*2`;
+    } else if (aspectRatio === "9:16-left") {
+      cropFilter = `crop=trunc(ih*9/16/2)*2:trunc(ih/2)*2:0:trunc((ih-oh)/2)`;
+    } else if (aspectRatio === "9:16-right") {
+      cropFilter = `crop=trunc(ih*9/16/2)*2:trunc(ih/2)*2:iw-ow:trunc((ih-oh)/2)`;
+    } else if (aspectRatio === "1:1") {
+      cropFilter = `crop=trunc(min(iw\\,ih)/2)*2:trunc(min(iw\\,ih)/2)*2`;
+    }
+
+    const finalLabel = "[out_v]";
+    filterComplex += `${lastLabel}${cropFilter}${finalLabel}`;
+    return {
+      type: "complex" as const,
+      filter: filterComplex,
+      outputLabel: "[out_v]"
+    };
+  }
+
+  return {
+    type: "complex" as const,
+    filter: filterComplex.trim().replace(/;\s*$/, ""),
+    outputLabel: lastLabel
+  };
+}
+
 function buildFFmpegArgs({
   inputName,
   muteAudio,
@@ -1159,6 +1608,9 @@ function buildFFmpegArgs({
   startTime,
   endTime,
   useFastCut,
+  aspectRatio = "original",
+  denoiseAudio = false,
+  blurBoxes = [],
 }: {
   inputName: string;
   muteAudio: boolean;
@@ -1167,10 +1619,16 @@ function buildFFmpegArgs({
   startTime: number;
   endTime: number;
   useFastCut: boolean;
+  aspectRatio?: string;
+  denoiseAudio?: boolean;
+  blurBoxes?: BlurBox[];
 }) {
   const args = ["-ss", startTime.toFixed(2), "-i", inputName, "-t", (endTime - startTime).toFixed(2)];
 
-  if (useFastCut) {
+  const hasFilters = aspectRatio !== "original" || denoiseAudio || blurBoxes.length > 0;
+  const isFastCutActive = useFastCut && !hasFilters;
+
+  if (isFastCutActive) {
     args.push("-c:v", "copy");
     if (muteAudio) {
       args.push("-an");
@@ -1185,21 +1643,41 @@ function buildFFmpegArgs({
   }
 
   if (outputFormat === "mp3") {
+    if (denoiseAudio) {
+      args.push("-af", "afftdn");
+    }
     args.push("-vn", "-acodec", "libmp3lame", "-b:a", "192k", "-f", "mp3", outputName);
     return args;
   }
 
+  const videoFilters = buildVideoFilters(aspectRatio, blurBoxes);
+
+  if (videoFilters && videoFilters.filter) {
+    if (outputFormat === "gif") {
+      let filterComplexStr = videoFilters.filter;
+      const finalLabel = videoFilters.outputLabel;
+      filterComplexStr += `; ${finalLabel}fps=15,scale=480:-1:flags=lanczos[gif_out]`;
+      args.push("-filter_complex", filterComplexStr, "-map", "[gif_out]");
+    } else {
+      args.push("-filter_complex", videoFilters.filter, "-map", videoFilters.outputLabel);
+      if (!muteAudio) {
+        args.push("-map", "0:a?");
+      }
+    }
+  } else if (outputFormat === "gif") {
+    args.push("-vf", "fps=15,scale=480:-1:flags=lanczos");
+  }
+
+  // Audio filter: Denoise (ignore if muted or format is GIF)
+  if (!muteAudio && denoiseAudio && outputFormat !== "gif") {
+    // If we already have filter_complex, we cannot pass -af separately sometimes depending on FFmpeg version,
+    // but in modern FFmpeg we can pass -af along with -filter_complex, or apply it inside the filter graph.
+    // Specifying -af afftdn is standard and fully works.
+    args.push("-af", "afftdn");
+  }
+
   if (outputFormat === "gif") {
-    args.push(
-      "-vf",
-      "fps=15,scale=480:-1:flags=lanczos",
-      "-an",
-      "-loop",
-      "0",
-      "-f",
-      "gif",
-      outputName,
-    );
+    args.push("-an", "-loop", "0", "-f", "gif", outputName);
     return args;
   }
 

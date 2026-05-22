@@ -137,6 +137,55 @@ const viTranslations: Translations = {
   "vid_config_start": "Bắt đầu",
   "vid_config_end": "Kết thúc",
 
+  // Crop & Denoise
+  "vid_config_crop": "Tỉ lệ khung hình",
+  "vid_config_crop_original": "Giữ nguyên (Original)",
+  "vid_config_crop_916_center": "Dọc 9:16 (TikTok/Reels - Giữa)",
+  "vid_config_crop_916_left": "Dọc 9:16 (TikTok/Reels - Trái)",
+  "vid_config_crop_916_right": "Dọc 9:16 (TikTok/Reels - Phải)",
+  "vid_config_crop_11": "Vuông 1:1 (Square)",
+  "vid_config_denoise": "Lọc tiếng ồn (Denoise)",
+  "vid_config_denoise_desc": "Giảm tạp âm rè, gió, còi xe...",
+  "vid_config_fast_cut_disabled": "Cắt nhanh bị tắt do bạn bật bộ lọc (Crop/Denoise/Blur)",
+
+  // Redaction / Area Blur
+  "vid_blur_title": "Che mờ vùng nhạy cảm",
+  "vid_blur_add_btn": "Thêm vùng mờ",
+  "vid_blur_box_label": "Vùng mờ {index}",
+  "vid_blur_start_time": "Từ giây",
+  "vid_blur_end_time": "Đến giây",
+  "vid_blur_remove_btn": "Xóa",
+  "vid_blur_empty": "Chưa có vùng mờ nào được thêm",
+  "vid_blur_helper": "Bấm 'Thêm vùng mờ' và kéo/thay đổi kích thước khung màu xanh trên video. Đặt khoảng thời gian áp dụng tương ứng.",
+
+  // Speech-to-Text Subtitle Generator
+  "tool_subtitle_title": "Tạo phụ đề",
+  "tool_subtitle_label": "Whisper AI",
+  "tool_subtitle_desc": "Tự động trích xuất phụ đề offline bằng AI 100% trong trình duyệt.",
+  "sub_title": "Trình tạo Phụ đề tự động (Speech to Text)",
+  "sub_desc": "Nhận dạng giọng nói và trích xuất phụ đề offline sử dụng Whisper AI. Chạy 100% trên trình duyệt của bạn.",
+  "sub_upload_title": "Tải lên file video hoặc audio",
+  "sub_upload_desc": "Hỗ trợ MP4, MOV, WebM, MP3, WAV, M4A... Dữ liệu chạy cục bộ, không upload lên máy chủ.",
+  "sub_upload_btn": "Chọn file âm thanh/video",
+  "sub_status_idle": "Sẵn sàng trích xuất phụ đề.",
+  "sub_status_loading_model": "Đang tải mô hình Whisper AI... (~75MB, chỉ tải lần đầu)",
+  "sub_status_decoding_audio": "Đang giải mã và resample âm thanh...",
+  "sub_status_transcribing": "Đang nhận diện giọng nói... {percent}%",
+  "sub_status_done": "Đã trích xuất phụ đề thành công!",
+  "sub_status_error": "Lỗi trích xuất phụ đề.",
+  "sub_err_decode": "Không thể giải mã âm thanh từ file này. Vui lòng kiểm tra xem tệp có chứa tiếng (audio track) hoặc chuyển đổi sang MP3/WAV/MP4 chuẩn để thử lại.",
+  "sub_btn_transcribe": "Bắt đầu trích xuất phụ đề",
+  "sub_btn_download_srt": "Tải file .SRT",
+  "sub_btn_download_vtt": "Tải file .VTT",
+  "sub_btn_download_txt": "Tải file .TXT",
+  "sub_btn_burn_in": "Chèn cứng phụ đề vào video",
+  "sub_btn_burn_in_rendering": "Đang chèn phụ đề...",
+  "sub_editor_title": "Bảng phụ đề ({count})",
+  "sub_editor_add_btn": "Thêm câu phụ đề",
+  "sub_editor_no_segments": "Chưa có câu phụ đề nào. Nhấn bắt đầu để trích xuất phụ đề tự động.",
+  "sub_editor_sync_player": "Đồng bộ video",
+  "sub_editor_btn_delete": "Xóa câu",
+
   // Video Processor Upload Panel
   "vid_upload_title": "Chọn nhiều video để cắt trực quan",
   "vid_upload_desc": "Hỗ trợ MP4, MOV và WebM. Video chạy cục bộ trong trình duyệt bằng FFmpeg.wasm, không upload lên server. Sắp xếp tuần tự tránh tràn bộ nhớ.",
@@ -288,6 +337,55 @@ const enTranslations: Translations = {
   "vid_config_start": "Start",
   "vid_config_end": "End",
 
+  // Crop & Denoise
+  "vid_config_crop": "Aspect Ratio",
+  "vid_config_crop_original": "Original",
+  "vid_config_crop_916_center": "Vertical 9:16 (Center)",
+  "vid_config_crop_916_left": "Vertical 9:16 (Left)",
+  "vid_config_crop_916_right": "Vertical 9:16 (Right)",
+  "vid_config_crop_11": "Square 1:1",
+  "vid_config_denoise": "Denoise Audio",
+  "vid_config_denoise_desc": "Reduce background noise (wind, hum, hiss)",
+  "vid_config_fast_cut_disabled": "Fast Cut disabled due to active filters (Crop/Denoise/Blur)",
+
+  // Redaction / Area Blur
+  "vid_blur_title": "Video Redaction / Blur",
+  "vid_blur_add_btn": "Add Blur Box",
+  "vid_blur_box_label": "Blur Box {index}",
+  "vid_blur_start_time": "Start (sec)",
+  "vid_blur_end_time": "End (sec)",
+  "vid_blur_remove_btn": "Delete",
+  "vid_blur_empty": "No blur boxes added yet",
+  "vid_blur_helper": "Click 'Add Blur Box' and drag/resize the blue box on the video. Set the start and end times for the blur.",
+
+  // Speech-to-Text Subtitle Generator
+  "tool_subtitle_title": "Subtitles",
+  "tool_subtitle_label": "Whisper AI",
+  "tool_subtitle_desc": "Automatically generate subtitles offline using AI in your browser.",
+  "sub_title": "Automatic Subtitle Generator (Speech to Text)",
+  "sub_desc": "Transcribe audio offline using Whisper AI. Runs 100% in your browser.",
+  "sub_upload_title": "Upload video or audio file",
+  "sub_upload_desc": "Supports MP4, MOV, WebM, MP3, WAV, M4A... Processed locally, no server uploads.",
+  "sub_upload_btn": "Select Audio/Video File",
+  "sub_status_idle": "Ready to generate subtitles.",
+  "sub_status_loading_model": "Loading Whisper AI model... (~75MB, first time only)",
+  "sub_status_decoding_audio": "Decoding and resampling audio...",
+  "sub_status_transcribing": "Transcribing speech... {percent}%",
+  "sub_status_done": "Subtitles generated successfully!",
+  "sub_status_error": "Failed to generate subtitles.",
+  "sub_err_decode": "Could not decode audio from this file. Please verify that the file has an audio track, or convert it to standard MP3/WAV/MP4 format and try again.",
+  "sub_btn_transcribe": "Start Transcription",
+  "sub_btn_download_srt": "Download .SRT",
+  "sub_btn_download_vtt": "Download .VTT",
+  "sub_btn_download_txt": "Download .TXT",
+  "sub_btn_burn_in": "Burn Subtitles into Video",
+  "sub_btn_burn_in_rendering": "Burning subtitles...",
+  "sub_editor_title": "Subtitle List ({count})",
+  "sub_editor_add_btn": "Add Segment",
+  "sub_editor_no_segments": "No subtitle segments yet. Start transcription to generate subtitles.",
+  "sub_editor_sync_player": "Sync Video",
+  "sub_editor_btn_delete": "Delete",
+
   // Video Processor Upload Panel
   "vid_upload_title": "Select multiple videos for visual trimming",
   "vid_upload_desc": "Supports MP4, MOV, and WebM. Videos are processed locally using FFmpeg.wasm, no server uploads. Sequential queuing avoids memory overflow.",
@@ -327,7 +425,9 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const savedLanguage = localStorage.getItem("medianinja_lang") as Language;
     if (savedLanguage === "vi" || savedLanguage === "en") {
-      setLanguageState(savedLanguage);
+      setTimeout(() => {
+        setLanguageState((prev) => (prev !== savedLanguage ? savedLanguage : prev));
+      }, 0);
     }
   }, []);
 

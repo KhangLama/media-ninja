@@ -2,10 +2,11 @@
 
 import ImageProcessor from "@/components/ImageProcessor";
 import VideoProcessor from "@/components/VideoProcessor";
+import SubtitleProcessor from "@/components/SubtitleProcessor";
 import { useState } from "react";
 import { LanguageProvider, useLanguage } from "@/components/LanguageContext";
 
-type ToolId = "compress" | "video";
+type ToolId = "compress" | "video" | "subtitle";
 
 type Tool = {
   id: ToolId;
@@ -20,6 +21,10 @@ const tools: Tool[] = [
   {
     id: "video",
     accept: "video/mp4,video/quicktime,video/webm",
+  },
+  {
+    id: "subtitle",
+    accept: "video/mp4,video/quicktime,video/webm,audio/mpeg,audio/wav,audio/x-m4a",
   },
 ];
 
@@ -152,7 +157,7 @@ function ToolWorkspace({
       <div className="flex flex-col gap-6">
         <div
           aria-label="Media tools"
-          className="grid gap-4 grid-cols-1 sm:grid-cols-2 max-w-2xl w-full mx-auto"
+          className="grid gap-4 grid-cols-1 sm:grid-cols-3 max-w-3xl w-full mx-auto"
           role="tablist"
         >
           {tools.map((tool) => (
@@ -168,6 +173,8 @@ function ToolWorkspace({
         <div className="w-full">
           {activeToolId === "video" ? (
             <VideoProcessor />
+          ) : activeToolId === "subtitle" ? (
+            <SubtitleProcessor />
           ) : (
             <ImageProcessor key={activeToolId} />
           )}
@@ -188,9 +195,9 @@ function ToolTab({
 }) {
   const { t } = useLanguage();
   
-  const title = tool.id === "compress" ? t("tool_image_title") : t("tool_video_title");
-  const label = tool.id === "compress" ? t("tool_image_label") : t("tool_video_label");
-  const description = tool.id === "compress" ? t("tool_image_desc") : t("tool_video_desc");
+  const title = tool.id === "compress" ? t("tool_image_title") : tool.id === "video" ? t("tool_video_title") : t("tool_subtitle_title");
+  const label = tool.id === "compress" ? t("tool_image_label") : tool.id === "video" ? t("tool_video_label") : t("tool_subtitle_label");
+  const description = tool.id === "compress" ? t("tool_image_desc") : tool.id === "video" ? t("tool_video_desc") : t("tool_subtitle_desc");
 
   return (
     <button
@@ -247,7 +254,7 @@ function Footer() {
         <select
           aria-label="Select Language"
           value={language}
-          onChange={(e) => setLanguage(e.target.value as any)}
+          onChange={(e) => setLanguage(e.target.value as "vi" | "en")}
           className="rounded-md border border-white/10 bg-neutral-950 px-2 py-1 text-xs text-neutral-400 outline-none focus:border-cyan-300/70 hover:border-white/20 transition cursor-pointer"
         >
           <option value="vi">Tiếng Việt</option>
