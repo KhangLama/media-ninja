@@ -66,12 +66,6 @@ function Header() {
         aria-label="Primary navigation"
         className="flex items-center gap-6 text-sm text-neutral-400"
       >
-        <a className="transition hover:text-white" href="#tools">
-          {t("tools")}
-        </a>
-        <a className="transition hover:text-white" href="#privacy">
-          {t("privacy")}
-        </a>
         <a
           className="flex items-center gap-1.5 text-neutral-300 transition hover:text-white"
           href="https://github.com/KhangLama/media-ninja"
