@@ -4,7 +4,7 @@ import ImageProcessor from "@/components/ImageProcessor";
 import VideoProcessor from "@/components/VideoProcessor";
 import { useState } from "react";
 
-type ToolId = "compress" | "metadata" | "video";
+type ToolId = "compress" | "video";
 
 type Tool = {
   id: ToolId;
@@ -25,15 +25,6 @@ const tools: Tool[] = [
     acceptLabel: "Kéo thả ảnh vào đây",
     formats: "WebP, JPEG, PNG",
     accept: "image/webp,image/jpeg,image/png",
-  },
-  {
-    id: "metadata",
-    title: "Sửa Metadata",
-    label: "EXIF Studio",
-    description: "Xem, chỉnh sửa và làm sạch metadata dành cho nhiếp ảnh gia.",
-    acceptLabel: "Kéo thả ảnh có EXIF vào đây",
-    formats: "JPEG, PNG, WebP",
-    accept: "image/jpeg,image/png,image/webp",
   },
   {
     id: "video",
@@ -180,7 +171,7 @@ function ToolWorkspace({
         {activeToolId === "video" ? (
           <VideoProcessor />
         ) : (
-          <ImageProcessor key={activeToolId} mode={activeToolId} />
+          <ImageProcessor key={activeToolId} />
         )}
       </div>
     </section>

@@ -5,12 +5,7 @@ import imageCompression from "browser-image-compression";
 import JSZip from "jszip";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-type ProcessorMode = "compress" | "metadata";
 type ProcessingStatus = "processing" | "ready" | "error";
-
-type ImageProcessorProps = {
-  mode?: ProcessorMode;
-};
 
 type ExifSummary = {
   camera: string;
@@ -50,7 +45,7 @@ const EXIF_TYPES = new Set(["image/jpeg", "image/tiff"]);
 const MAX_SIZE_MB = 1.5;
 const MAX_WIDTH_OR_HEIGHT = 2400;
 
-export default function ImageProcessor({ mode = "compress" }: ImageProcessorProps) {
+export default function ImageProcessor() {
   const [items, setItems] = useState<ProcessedImage[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isZipping, setIsZipping] = useState(false);
@@ -61,6 +56,7 @@ export default function ImageProcessor({ mode = "compress" }: ImageProcessorProp
   const [quality, setQuality] = useState(80);
   const [maxWidthHeight, setMaxWidthHeight] = useState<number | "original">("original");
   const [outputFormat, setOutputFormat] = useState<"original" | "image/jpeg" | "image/png" | "image/webp">("original");
+  const [autoClearMetadata, setAutoClearMetadata] = useState(true);
 
   useEffect(() => {
     const objectUrls = objectUrlsRef.current;
@@ -100,18 +96,21 @@ export default function ImageProcessor({ mode = "compress" }: ImageProcessorProp
             }
 
             const exif = await readExifSummary(queuedItem.originalFile);
-            const outputFile =
-              mode === "metadata"
-                ? await clearMetadataFile(queuedItem.originalFile)
-                : await compressImageFile(
-                    queuedItem.originalFile,
-                    quality,
-                    maxWidthHeight,
-                    outputFormat,
-                    (progress) => {
-                      updateImageItem(queuedItem.id, { progress });
-                    }
-                  );
+            let outputFile = await compressImageFile(
+              queuedItem.originalFile,
+              quality,
+              maxWidthHeight,
+              outputFormat,
+              !autoClearMetadata,
+              (progress) => {
+                updateImageItem(queuedItem.id, { progress });
+              }
+            );
+
+            if (autoClearMetadata && (outputFile.type === "image/jpeg" || outputFile.type === "image/jpg")) {
+              outputFile = await clearMetadataFile(outputFile, outputFile.name);
+            }
+
             const downloadUrl = URL.createObjectURL(outputFile);
             objectUrlsRef.current.add(downloadUrl);
 
@@ -122,7 +121,7 @@ export default function ImageProcessor({ mode = "compress" }: ImageProcessorProp
               outputSize: outputFile.size,
               downloadUrl,
               exif,
-              metadataCleared: mode === "metadata",
+              metadataCleared: autoClearMetadata,
             });
           } catch (error) {
             updateImageItem(queuedItem.id, {
@@ -137,7 +136,7 @@ export default function ImageProcessor({ mode = "compress" }: ImageProcessorProp
         }),
       );
     },
-    [mode, updateImageItem, quality, maxWidthHeight, outputFormat],
+    [autoClearMetadata, updateImageItem, quality, maxWidthHeight, outputFormat],
   );
 
   const clearMetadata = useCallback(async (item: ProcessedImage) => {
@@ -152,7 +151,8 @@ export default function ImageProcessor({ mode = "compress" }: ImageProcessorProp
     updateImageItem(item.id, { status: "processing", progress: 10, error: undefined });
 
     try {
-      const cleanFile = await clearMetadataFile(item.originalFile);
+      const fileToClear = item.outputFile ?? item.originalFile;
+      const cleanFile = await clearMetadataFile(fileToClear);
       const downloadUrl = URL.createObjectURL(cleanFile);
       objectUrlsRef.current.add(downloadUrl);
 
@@ -204,58 +204,72 @@ export default function ImageProcessor({ mode = "compress" }: ImageProcessorProp
 
   return (
     <section className="rounded-lg border border-white/10 bg-neutral-900/80 p-4 sm:p-6">
-      {mode === "compress" && (
-        <div className="mb-5 rounded-lg border border-white/10 bg-neutral-950 p-4 shadow-inner">
-          <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-            <SettingsIcon /> Cấu hình nén ảnh
-          </h3>
-          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
-            <div>
-              <label className="flex justify-between text-xs text-neutral-400 mb-2">
-                <span>Chất lượng (Quality)</span>
-                <span className="font-semibold text-cyan-300">{quality}%</span>
-              </label>
-              <input
-                type="range"
-                min="10"
-                max="100"
-                value={quality}
-                onChange={(e) => setQuality(Number(e.target.value))}
-                className="w-full h-1.5 bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-cyan-300"
-              />
-            </div>
-            
-            <div>
-              <label className="text-xs text-neutral-400 block mb-2">Kích thước ảnh tối đa</label>
-              <select
-                value={maxWidthHeight}
-                onChange={(e) => setMaxWidthHeight(e.target.value === "original" ? "original" : Number(e.target.value))}
-                className="w-full rounded-md border border-white/10 bg-neutral-900 px-3 py-1.5 text-xs text-white outline-none focus:border-cyan-300 focus:ring-1 focus:ring-cyan-300"
-              >
-                <option value="original">Giữ nguyên độ phân giải</option>
-                <option value="3840">4K UHD (3840px)</option>
-                <option value="2048">2K (2048px)</option>
-                <option value="1920">Full HD 1080p (1920px)</option>
-                <option value="1280">HD 720p (1280px)</option>
-              </select>
-            </div>
+      <div className="mb-5 rounded-lg border border-white/10 bg-neutral-950 p-4 shadow-inner">
+        <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+          <SettingsIcon /> Cấu hình nén ảnh
+        </h3>
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <label className="flex justify-between text-xs text-neutral-400 mb-2">
+              <span>Chất lượng (Quality)</span>
+              <span className="font-semibold text-cyan-300">{quality}%</span>
+            </label>
+            <input
+              type="range"
+              min="10"
+              max="100"
+              value={quality}
+              onChange={(e) => setQuality(Number(e.target.value))}
+              className="w-full h-1.5 bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-cyan-300"
+            />
+          </div>
+          
+          <div>
+            <label className="text-xs text-neutral-400 block mb-2">Kích thước ảnh tối đa</label>
+            <select
+              value={maxWidthHeight}
+              onChange={(e) => setMaxWidthHeight(e.target.value === "original" ? "original" : Number(e.target.value))}
+              className="w-full rounded-md border border-white/10 bg-neutral-900 px-3 py-1.5 text-xs text-white outline-none focus:border-cyan-300 focus:ring-1 focus:ring-cyan-300"
+            >
+              <option value="original">Giữ nguyên độ phân giải</option>
+              <option value="3840">4K UHD (3840px)</option>
+              <option value="2048">2K (2048px)</option>
+              <option value="1920">Full HD 1080p (1920px)</option>
+              <option value="1280">HD 720p (1280px)</option>
+            </select>
+          </div>
 
-            <div>
-              <label className="text-xs text-neutral-400 block mb-2">Định dạng xuất</label>
-              <select
-                value={outputFormat}
-                onChange={(e) => setOutputFormat(e.target.value as any)}
-                className="w-full rounded-md border border-white/10 bg-neutral-900 px-3 py-1.5 text-xs text-white outline-none focus:border-cyan-300 focus:ring-1 focus:ring-cyan-300"
-              >
-                <option value="original">Giữ nguyên định dạng gốc</option>
-                <option value="image/webp">Chuyển sang WebP (Khuyên dùng)</option>
-                <option value="image/jpeg">Chuyển sang JPEG</option>
-                <option value="image/png">Chuyển sang PNG</option>
-              </select>
-            </div>
+          <div>
+            <label className="text-xs text-neutral-400 block mb-2">Định dạng xuất</label>
+            <select
+              value={outputFormat}
+              onChange={(e) => setOutputFormat(e.target.value as any)}
+              className="w-full rounded-md border border-white/10 bg-neutral-900 px-3 py-1.5 text-xs text-white outline-none focus:border-cyan-300 focus:ring-1 focus:ring-cyan-300"
+            >
+              <option value="original">Giữ nguyên định dạng gốc</option>
+              <option value="image/webp">Chuyển sang WebP (Khuyên dùng)</option>
+              <option value="image/jpeg">Chuyển sang JPEG</option>
+              <option value="image/png">Chuyển sang PNG</option>
+            </select>
+          </div>
+
+          <div className="flex flex-col justify-end">
+            <label className="relative inline-flex items-center cursor-pointer select-none py-1.5">
+              <input
+                type="checkbox"
+                checked={autoClearMetadata}
+                onChange={(e) => setAutoClearMetadata(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-9 h-5 rounded-full bg-neutral-800 border border-white/10 peer-checked:bg-cyan-500/20 peer-checked:border-cyan-500/40 transition-all duration-300 relative shrink-0 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-neutral-400 peer-checked:after:bg-cyan-300 after:rounded-full after:h-3.5 after:w-3.5 after:transition-all after:duration-300 peer-checked:after:translate-x-4"></div>
+              <div className="ms-3">
+                <span className="block text-xs font-semibold text-white">Tự động xóa Metadata</span>
+                <span className="text-[10px] text-neutral-500">Xóa EXIF & GPS bảo vệ riêng tư</span>
+              </div>
+            </label>
           </div>
         </div>
-      )}
+      </div>
 
       <div
         className={[
@@ -294,7 +308,7 @@ export default function ImageProcessor({ mode = "compress" }: ImageProcessorProp
           <UploadIcon />
         </div>
         <p className="text-xl font-semibold text-white">
-          {mode === "metadata" ? "Kiểm tra và xóa metadata ảnh" : "Nén ảnh trong trình duyệt"}
+          Nén ảnh trong trình duyệt
         </p>
         <p className="mt-3 max-w-xl text-sm leading-6 text-neutral-400">
           Chọn hoặc kéo thả ảnh JPEG, PNG, WebP. File được xử lý cục bộ trên thiết bị,
@@ -469,12 +483,13 @@ async function compressImageFile(
   quality: number,
   maxWidthHeight: number | "original",
   format: "original" | "image/jpeg" | "image/png" | "image/webp",
+  preserveExif: boolean,
   onProgress: (progress: number) => void
 ) {
   const options: any = {
     maxSizeMB: 30, // Đặt giới hạn dung lượng lớn để nén theo chất lượng
     initialQuality: quality / 100,
-    preserveExif: false,
+    preserveExif,
     useWebWorker: true,
     onProgress,
   };
@@ -576,12 +591,12 @@ function stripJpegExif(arrayBuffer: ArrayBuffer): ArrayBuffer {
   return cleanBuffer;
 }
 
-async function clearMetadataFile(file: File) {
+async function clearMetadataFile(file: File, customName?: string) {
   try {
     if (file.type === "image/jpeg" || file.type === "image/jpg") {
       const buffer = await file.arrayBuffer();
       const cleanBuffer = stripJpegExif(buffer);
-      return new File([cleanBuffer], withSuffix(file.name, "private"), {
+      return new File([cleanBuffer], customName ?? withSuffix(file.name, "private"), {
         type: file.type,
         lastModified: Date.now(),
       });
@@ -597,7 +612,7 @@ async function clearMetadataFile(file: File) {
       useWebWorker: true,
     });
 
-    return new File([cleanFile], withSuffix(file.name, "private"), {
+    return new File([cleanFile], customName ?? withSuffix(file.name, "private"), {
       type: cleanFile.type || file.type,
       lastModified: Date.now(),
     });
