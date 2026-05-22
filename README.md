@@ -90,6 +90,29 @@ Cross-Origin-Embedder-Policy: require-corp
 
 ---
 
+## 💻 Hardware & Performance Guide / Khuyến Nghị Cấu Hình & Tối Ưu
+
+Running complex tools like **FFmpeg.wasm** and **Whisper AI** 100% locally in the browser can be CPU and RAM intensive. Below are recommended settings and practices to ensure smooth performance and prevent browser crashes:
+
+Việc chạy các tác vụ nặng như **FFmpeg.wasm** và **Whisper AI** trực tiếp 100% trên trình duyệt đòi hỏi nhiều tài nguyên CPU và RAM. Dưới đây là các khuyến nghị cấu hình và lưu ý để tránh treo trình duyệt:
+
+### ⚙️ Recommended System Specs / Cấu hình khuyến nghị
+* **CPU**: Multi-core processor (Apple Silicon M1/M2/M3, Intel Core i5/i7 10th Gen+, AMD Ryzen 5+) is highly recommended for multi-threaded WebAssembly execution / Bộ vi xử lý đa nhân được khuyến nghị để xử lý WebAssembly đa luồng mượt mà.
+* **RAM**: **8 GB** minimum (**16 GB** recommended) to prevent out-of-memory crashes / Tối thiểu **8 GB** RAM (khuyến nghị **16 GB**) để tránh bị tràn bộ nhớ gây sập tab trình duyệt.
+* **Browser**: Latest Google Chrome, Microsoft Edge, or Brave (due to superior WebAssembly performance and shared memory support) / Trình duyệt Chrome, Edge hoặc Brave bản mới nhất.
+
+### 💡 Optimization Tips / Mẹo tối ưu hóa
+1. **Use Fast Cut (Ưu tiên Cắt Nhanh)**:
+   * If you only need to trim or mute, keep **Fast Cut** enabled. It extracts video frames without re-encoding, taking seconds and using minimal CPU / Nếu chỉ cần cắt hoặc tắt âm, hãy giữ bật **Cắt Nhanh (Fast Cut)**. Tác vụ này không encode lại, hoàn thành trong vài giây và tốn cực ít tài nguyên.
+2. **Video File Size (Kích thước tệp video)**:
+   * Keep video files under **100MB** (hard limit is **300MB**) when applying complex filters (Crop, Blur, Denoise) to prevent browser memory overflow / Khuyên dùng tệp video dưới **100MB** (giới hạn cứng **300MB**) khi sử dụng các bộ lọc như cắt khung hình, che mờ, lọc tiếng ồn để tránh tràn bộ nhớ trình duyệt.
+3. **Whisper AI Model (Mô hình Whisper AI)**:
+   * The first transcription downloads a **75MB** Whisper-Tiny model. It is cached in the browser's local Cache Storage. Subsequent runs will work instantly and 100% offline / Lần chạy đầu tiên sẽ tải mô hình Whisper-Tiny (~75MB). Mô hình sau đó được lưu cache cục bộ và chạy ngay lập tức hoàn toàn offline ở các lần sau.
+4. **Close Heavy Tabs (Đóng bớt tab nặng)**:
+   * Close resource-heavy browser tabs (e.g., Figma, YouTube, games) while processing queue / Đóng bớt các tab tốn RAM khác trước khi chạy hàng đợi xử lý video để tránh xung đột tài nguyên.
+
+---
+
 ## 📄 License / Giấy Phép
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
