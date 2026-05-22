@@ -2,16 +2,30 @@
 
 import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile } from "@ffmpeg/util";
+import JSZip from "jszip";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type OutputFormat = "mp4" | "webm" | "gif" | "mp3";
 type ProcessorStatus = "idle" | "loading" | "ready" | "processing" | "done" | "error";
 type DragHandle = "start" | "end";
 
-type VideoResult = {
-  fileName: string;
-  size: number;
-  url: string;
+type ProcessedVideo = {
+  id: string;
+  originalFile: File;
+  displayName: string;
+  previewUrl: string;
+  status: ProcessorStatus;
+  progress: number;
+  duration: number;
+  selection: [number, number];
+  outputFormat: OutputFormat;
+  muteAudio: boolean;
+  useFastCut: boolean;
+  outputSize?: number;
+  outputFile?: File;
+  downloadUrl?: string;
+  error?: string | null;
+  videoWarning?: string | null;
 };
 
 const ACCEPTED_VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm"]);
@@ -20,101 +34,102 @@ const MIN_CLIP_DURATION = 0.25;
 
 export default function VideoProcessor() {
   const ffmpegRef = useRef<FFmpeg | null>(null);
-  const outputUrlRef = useRef<string | null>(null);
-  const previewUrlRef = useRef<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const seekFrameRef = useRef<number | null>(null);
+  const createdUrlsRef = useRef<Set<string>>(new Set());
+  const currentProcessingVideoIdRef = useRef<string | null>(null);
 
+  const [videos, setVideos] = useState<ProcessedVideo[]>([]);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const [isProcessingQueue, setIsProcessingQueue] = useState(false);
+  const [isZipping, setIsZipping] = useState(false);
+
+  // FFmpeg status
   const [status, setStatus] = useState<ProcessorStatus>("idle");
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [outputFormat, setOutputFormat] = useState<OutputFormat>("mp4");
-  const [muteOriginalAudio, setMuteOriginalAudio] = useState(false);
-  const [duration, setDuration] = useState(0);
-  const [selection, setSelection] = useState<[number, number]>([0, 0]);
-  const [activeHandle, setActiveHandle] = useState<DragHandle | null>(null);
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState("Chọn video để bắt đầu.");
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<VideoResult | null>(null);
-  const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [isFFmpegLoaded, setIsFFmpegLoaded] = useState(false);
 
-  // Thêm các state và memo cấu hình cắt nhanh & phát thử
-  const [useFastCut, setUseFastCut] = useState(true);
+  // Interaction status
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const [activeHandle, setActiveHandle] = useState<DragHandle | null>(null);
   const [isPlayingSelection, setIsPlayingSelection] = useState(false);
   const [loopSelection, setLoopSelection] = useState(true);
-  const [videoWarning, setVideoWarning] = useState<string | null>(null);
+
+  // Helper track created object URLs for cleanup
+  const trackUrl = (url: string) => {
+    createdUrlsRef.current.add(url);
+  };
 
   useEffect(() => {
     return () => {
       if (seekFrameRef.current) cancelAnimationFrame(seekFrameRef.current);
-      if (outputUrlRef.current) URL.revokeObjectURL(outputUrlRef.current);
-      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+      createdUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      createdUrlsRef.current.clear();
       ffmpegRef.current?.terminate();
     };
   }, []);
 
+  const activeVideo = useMemo(() => {
+    if (activeIndex === null || activeIndex >= videos.length) return null;
+    return videos[activeIndex];
+  }, [videos, activeIndex]);
+
   const isSameFormat = useMemo(() => {
-    if (!selectedFile) return false;
-    const ext = extensionFromFile(selectedFile);
-    return ext === outputFormat;
-  }, [selectedFile, outputFormat]);
+    if (!activeVideo) return false;
+    const ext = extensionFromFile(activeVideo.originalFile);
+    return ext === activeVideo.outputFormat;
+  }, [activeVideo]);
+
+  const updateActiveVideo = useCallback((patch: Partial<ProcessedVideo>) => {
+    if (activeIndex === null) return;
+    setVideos((currentItems) =>
+      currentItems.map((item, idx) => (idx === activeIndex ? { ...item, ...patch } : item)),
+    );
+  }, [activeIndex]);
 
   const togglePlaySelection = useCallback(() => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || !activeVideo) return;
 
     if (isPlayingSelection) {
       video.pause();
       setIsPlayingSelection(false);
     } else {
-      video.currentTime = selection[0];
+      video.currentTime = activeVideo.selection[0];
       void video.play().then(() => {
         setIsPlayingSelection(true);
       }).catch(() => {
         setIsPlayingSelection(false);
       });
     }
-  }, [isPlayingSelection, selection]);
+  }, [isPlayingSelection, activeVideo]);
 
   const handleTimeUpdate = useCallback(() => {
     const video = videoRef.current;
-    if (!video || !isPlayingSelection) return;
+    if (!video || !isPlayingSelection || !activeVideo) return;
 
-    if (video.currentTime >= selection[1] || video.currentTime < selection[0]) {
+    if (video.currentTime >= activeVideo.selection[1] || video.currentTime < activeVideo.selection[0]) {
       if (loopSelection) {
-        video.currentTime = selection[0];
+        video.currentTime = activeVideo.selection[0];
       } else {
         video.pause();
         setIsPlayingSelection(false);
-        video.currentTime = selection[0];
+        video.currentTime = activeVideo.selection[0];
       }
     }
-  }, [isPlayingSelection, selection, loopSelection]);
+  }, [isPlayingSelection, activeVideo, loopSelection]);
 
   const handlePause = useCallback(() => {
     setIsPlayingSelection(false);
   }, []);
 
-  const canProcess = useMemo(
-    () =>
-      Boolean(selectedFile) &&
-      isFFmpegLoaded &&
-      duration > 0 &&
-      selection[1] > selection[0] &&
-      status !== "processing",
-    [duration, isFFmpegLoaded, selectedFile, selection, status],
-  );
-
-  const processButtonLabel = useMemo(() => {
-    if (status === "loading") return "Đang khởi tạo bộ xử lý...";
-    if (status === "processing") return "Đang render...";
-    return "Cắt và Tải về";
-  }, [status]);
-
-  const clipDuration = Math.max(0, selection[1] - selection[0]);
+  const clipDuration = useMemo(() => {
+    if (!activeVideo) return 0;
+    return Math.max(0, activeVideo.selection[1] - activeVideo.selection[0]);
+  }, [activeVideo]);
 
   const seekPreview = useCallback((time: number) => {
     if (seekFrameRef.current) cancelAnimationFrame(seekFrameRef.current);
@@ -139,7 +154,14 @@ export default function VideoProcessor() {
       const assetBaseUrl = `${window.location.origin}${FFMPEG_ASSET_BASE_URL}`;
 
       ffmpeg.on("progress", ({ progress: ffmpegProgress }) => {
-        setProgress(clamp(ffmpegProgress * 100, 0, 100));
+        const pct = clamp(ffmpegProgress * 100, 0, 100);
+        setProgress(pct);
+        if (currentProcessingVideoIdRef.current) {
+          const vidId = currentProcessingVideoIdRef.current;
+          setVideos((current) =>
+            current.map((v) => (v.id === vidId ? { ...v, progress: pct } : v))
+          );
+        }
       });
 
       await ffmpeg.load({
@@ -170,81 +192,101 @@ export default function VideoProcessor() {
 
   const startFFmpegInBackground = useCallback(() => {
     void loadFFmpeg().catch(() => {
-      // The error state is set inside loadFFmpeg.
+      // Handled inside loadFFmpeg
     });
   }, [loadFFmpeg]);
 
   const handleFiles = useCallback(
     (fileList: FileList | File[]) => {
-      const file = Array.from(fileList)[0];
-      if (!file) return;
+      const selectedFiles = Array.from(fileList);
+      if (selectedFiles.length === 0) return;
 
       setError(null);
-      setVideoWarning(null);
-      setResult(null);
-      setProgress(0);
-      setDuration(0);
-      setSelection([0, 0]);
-      setActiveHandle(null);
+      const newProcessedVideos: ProcessedVideo[] = [];
 
-      if (!ACCEPTED_VIDEO_TYPES.has(file.type)) {
-        setSelectedFile(null);
-        setPreviewUrl(null);
-        setStatus("error");
-        setMessage("File không hợp lệ.");
-        setError("Định dạng không hợp lệ. Vui lòng chọn MP4, MOV hoặc WebM.");
-        return;
+      for (const file of selectedFiles) {
+        if (!ACCEPTED_VIDEO_TYPES.has(file.type)) {
+          setError("Có file không hợp lệ. Vui lòng chọn MP4, MOV hoặc WebM.");
+          continue;
+        }
+
+        // Size check >300MB
+        if (file.size > 300 * 1024 * 1024) {
+          setError(`File "${file.name}" quá lớn (vượt quá 300MB). Vui lòng chọn file nhỏ hơn.`);
+          continue;
+        }
+
+        const previewUrl = URL.createObjectURL(file);
+        trackUrl(previewUrl);
+
+        let videoWarning = null;
+        if (file.size > 150 * 1024 * 1024) {
+          videoWarning = "Cảnh báo: Video lớn hơn 150MB. Tiến trình render bình thường có thể làm tràn bộ nhớ trình duyệt. Khuyến nghị bật 'Cắt nhanh (Fast Cut)'.";
+        }
+
+        newProcessedVideos.push({
+          id: `${file.name}-${file.size}-${file.lastModified}-${crypto.randomUUID()}`,
+          originalFile: file,
+          displayName: file.name,
+          previewUrl,
+          status: "idle",
+          progress: 0,
+          duration: 0,
+          selection: [0, 0],
+          outputFormat: "mp4",
+          muteAudio: false,
+          useFastCut: true,
+          videoWarning,
+        });
       }
 
-      // Giới hạn dung lượng: >300MB chặn, >150MB cảnh báo
-      if (file.size > 300 * 1024 * 1024) {
-        setSelectedFile(null);
-        setPreviewUrl(null);
-        setStatus("error");
-        setMessage("File quá lớn.");
-        setError("Kích thước video vượt quá 300MB. Vui lòng chọn file nhỏ hơn để tránh crash trình duyệt.");
-        return;
-      }
+      if (newProcessedVideos.length === 0) return;
 
-      if (file.size > 150 * 1024 * 1024) {
-        setVideoWarning("Cảnh báo: Video lớn hơn 150MB. Tiến trình render bình thường có thể làm tràn bộ nhớ trình duyệt. Khuyến nghị bật 'Cắt nhanh (Fast Cut)'.");
-      }
+      setVideos((current) => {
+        const next = [...current, ...newProcessedVideos];
+        if (activeIndex === null) {
+          setActiveIndex(current.length);
+        }
+        return next;
+      });
 
-      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
-      const nextPreviewUrl = URL.createObjectURL(file);
-      previewUrlRef.current = nextPreviewUrl;
-
-      setSelectedFile(file);
-      setPreviewUrl(nextPreviewUrl);
-      if (isFFmpegLoaded) {
-        setStatus("ready");
-        setMessage("Bộ xử lý đã sẵn sàng.");
-      } else {
-        setStatus("loading");
-        setMessage("Đang khởi tạo bộ xử lý...");
+      if (!isFFmpegLoaded) {
         startFFmpegInBackground();
       }
     },
-    [isFFmpegLoaded, startFFmpegInBackground],
+    [activeIndex, isFFmpegLoaded, startFFmpegInBackground],
   );
 
   const handleLoadedMetadata = useCallback(() => {
-    const videoDuration = videoRef.current?.duration ?? 0;
+    const videoElement = videoRef.current;
+    if (!videoElement || activeIndex === null) return;
+
+    const videoDuration = videoElement.duration ?? 0;
     if (!Number.isFinite(videoDuration) || videoDuration <= 0) {
-      setDuration(0);
-      setSelection([0, 0]);
-      setError("Không đọc được thời lượng video. Hãy thử file khác.");
+      updateActiveVideo({ error: "Không đọc được thời lượng video. Hãy thử file khác." });
       return;
     }
 
-    setDuration(videoDuration);
-    setSelection([0, videoDuration]);
-    seekPreview(0);
-  }, [seekPreview]);
+    setVideos((current) =>
+      current.map((v, i) => {
+        if (i === activeIndex) {
+          const nextDuration = v.duration || videoDuration;
+          const nextSelection = v.selection[1] === 0 ? [0, videoDuration] as [number, number] : v.selection;
+          return {
+            ...v,
+            duration: nextDuration,
+            selection: nextSelection,
+          };
+        }
+        return v;
+      })
+    );
+  }, [activeIndex]);
 
   const updateSelection = useCallback(
     (handle: DragHandle, rawValue: number) => {
-      if (duration <= 0 || status === "processing") return;
+      if (activeIndex === null || !activeVideo) return;
+      if (activeVideo.duration <= 0 || activeVideo.status === "processing" || isProcessingQueue) return;
 
       setIsPlayingSelection(false);
       const video = videoRef.current;
@@ -253,105 +295,240 @@ export default function VideoProcessor() {
       }
 
       setActiveHandle(handle);
-      setSelection(([currentStart, currentEnd]) => {
-        const value = clamp(rawValue, 0, duration);
-        const nextSelection: [number, number] =
-          handle === "start"
-            ? [Math.min(value, currentEnd - MIN_CLIP_DURATION), currentEnd]
-            : [currentStart, Math.max(value, currentStart + MIN_CLIP_DURATION)];
+      const value = clamp(rawValue, 0, activeVideo.duration);
+      const currentStart = activeVideo.selection[0];
+      const currentEnd = activeVideo.selection[1];
 
-        seekPreview(handle === "start" ? nextSelection[0] : nextSelection[1]);
-        return nextSelection;
-      });
+      const nextSelection: [number, number] =
+        handle === "start"
+          ? [Math.min(value, currentEnd - MIN_CLIP_DURATION), currentEnd]
+          : [currentStart, Math.max(value, currentStart + MIN_CLIP_DURATION)];
+
+      seekPreview(handle === "start" ? nextSelection[0] : nextSelection[1]);
+      updateActiveVideo({ selection: nextSelection });
     },
-    [duration, seekPreview, status],
+    [activeIndex, activeVideo, seekPreview, updateActiveVideo, isProcessingQueue],
   );
 
-  const processVideo = useCallback(async () => {
-    if (!selectedFile) {
-      setError("Vui lòng chọn video trước khi xử lý.");
-      return;
-    }
+  const removeVideo = useCallback((index: number) => {
+    setVideos((current) => {
+      const next = current.filter((_, i) => i !== index);
+      const removedVideo = current[index];
+      if (removedVideo) {
+        URL.revokeObjectURL(removedVideo.previewUrl);
+        if (removedVideo.downloadUrl) URL.revokeObjectURL(removedVideo.downloadUrl);
+        createdUrlsRef.current.delete(removedVideo.previewUrl);
+        if (removedVideo.downloadUrl) createdUrlsRef.current.delete(removedVideo.downloadUrl);
+      }
 
-    if (duration <= 0 || selection[1] <= selection[0]) {
-      setError("Vùng cắt chưa hợp lệ. Hãy kéo timeline để chọn đoạn video.");
-      return;
-    }
+      if (next.length === 0) {
+        setActiveIndex(null);
+      } else if (activeIndex === index) {
+        setActiveIndex(Math.max(0, index - 1));
+      } else if (activeIndex !== null && activeIndex > index) {
+        setActiveIndex(activeIndex - 1);
+      }
+      return next;
+    });
+  }, [activeIndex]);
 
-    setStatus("processing");
+  const clearAllVideos = useCallback(() => {
+    videos.forEach((video) => {
+      URL.revokeObjectURL(video.previewUrl);
+      if (video.downloadUrl) URL.revokeObjectURL(video.downloadUrl);
+    });
+    createdUrlsRef.current.clear();
+    setVideos([]);
+    setActiveIndex(null);
     setError(null);
-    setResult(null);
-    setProgress(0);
-    setMessage("Đang chuẩn bị render...");
+  }, [videos]);
 
-    const ffmpeg = await loadFFmpeg();
-    const inputName = `input.${extensionFromFile(selectedFile)}`;
-    const outputName = `medianinja-${Date.now()}.${outputFormat}`;
+  const processQueue = useCallback(async () => {
+    if (videos.length === 0) return;
+
+    setIsProcessingQueue(true);
+    setError(null);
 
     try {
-      await ffmpeg.writeFile(inputName, await fetchFile(selectedFile));
+      const ffmpeg = await loadFFmpeg();
 
-      const isFastCutActive = isSameFormat && useFastCut;
-      const args = buildFFmpegArgs({
-        inputName,
-        muteAudio: outputFormat !== "mp3" && muteOriginalAudio,
-        outputName,
-        outputFormat,
-        startTime: selection[0],
-        endTime: selection[1],
-        useFastCut: isFastCutActive,
-      });
+      for (let i = 0; i < videos.length; i++) {
+        const video = videos[i];
+        if (video.status === "done") continue;
 
-      if (isFastCutActive) {
-        setMessage("Đang cắt video siêu tốc (Fast Cut)...");
-      } else {
-        setMessage(messageForFormat(outputFormat));
+        currentProcessingVideoIdRef.current = video.id;
+
+        setVideos((current) =>
+          current.map((v) =>
+            v.id === video.id
+              ? { ...v, status: "processing", progress: 0, error: null }
+              : v
+          )
+        );
+
+        const ext = extensionFromFile(video.originalFile);
+        const inputName = `input_${video.id}.${ext}`;
+        const outputName = `output_${video.id}_${Date.now()}.${video.outputFormat}`;
+
+        try {
+          await ffmpeg.writeFile(inputName, await fetchFile(video.originalFile));
+
+          const isSameExt = ext === video.outputFormat;
+          const isFastCutActive = isSameExt && video.useFastCut;
+
+          const args = buildFFmpegArgs({
+            inputName,
+            muteAudio: video.outputFormat !== "mp3" && video.muteAudio,
+            outputName,
+            outputFormat: video.outputFormat,
+            startTime: video.selection[0],
+            endTime: video.selection[1],
+            useFastCut: isFastCutActive,
+          });
+
+          const exitCode = await ffmpeg.exec(args);
+          if (exitCode !== 0) {
+            throw new Error(`FFmpeg exited with error code ${exitCode}`);
+          }
+
+          const outputData = await ffmpeg.readFile(outputName);
+          const outputBytes =
+            typeof outputData === "string" ? new TextEncoder().encode(outputData) : outputData;
+          const blob = new Blob([toArrayBuffer(outputBytes)], {
+            type: mimeTypeForFormat(video.outputFormat),
+          });
+
+          const downloadUrl = URL.createObjectURL(blob);
+          trackUrl(downloadUrl);
+
+          setVideos((current) =>
+            current.map((v) =>
+              v.id === video.id
+                ? {
+                    ...v,
+                    status: "done",
+                    progress: 100,
+                    outputSize: blob.size,
+                    outputFile: new File([blob], withSuffix(video.originalFile.name, `trimmed.${video.outputFormat}`), { type: blob.type }),
+                    downloadUrl,
+                  }
+                : v
+            )
+          );
+
+          await Promise.allSettled([
+            ffmpeg.deleteFile(inputName),
+            ffmpeg.deleteFile(outputName),
+          ]);
+        } catch (videoError) {
+          console.error(videoError);
+          const errMsg = videoError instanceof Error ? videoError.message : "Xử lý video thất bại.";
+          setVideos((current) =>
+            current.map((v) =>
+              v.id === video.id
+                ? { ...v, status: "error", progress: 0, error: errMsg }
+                : v
+            )
+          );
+
+          await Promise.allSettled([
+            ffmpeg.deleteFile(inputName),
+            ffmpeg.deleteFile(outputName),
+          ]);
+        }
       }
-
-      const exitCode = await ffmpeg.exec(args);
-      if (exitCode !== 0) {
-        throw new Error(`FFmpeg kết thúc với mã lỗi ${exitCode}.`);
-      }
-
-      const outputData = await ffmpeg.readFile(outputName);
-      const outputBytes =
-        typeof outputData === "string" ? new TextEncoder().encode(outputData) : outputData;
-      const blob = new Blob([toArrayBuffer(outputBytes)], {
-        type: mimeTypeForFormat(outputFormat),
-      });
-
-      if (outputUrlRef.current) URL.revokeObjectURL(outputUrlRef.current);
-      const url = URL.createObjectURL(blob);
-      outputUrlRef.current = url;
-
-      setResult({
-        fileName: outputName,
-        size: blob.size,
-        url,
-      });
-      setStatus("done");
-      setProgress(100);
-      setMessage("Render hoàn tất.");
-
-      await Promise.allSettled([ffmpeg.deleteFile(inputName), ffmpeg.deleteFile(outputName)]);
-    } catch (processError) {
-      setStatus("error");
-      setProgress(0);
-      setMessage("Render thất bại.");
-      setError(
-        processError instanceof Error
-          ? processError.message
-          : "Không thể xử lý video. Hãy thử file ngắn hơn hoặc định dạng khác.",
-      );
-      await Promise.allSettled([ffmpeg.deleteFile(inputName), ffmpeg.deleteFile(outputName)]);
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : "Đã xảy ra lỗi khi khởi động tiến trình xử lý.");
+    } finally {
+      currentProcessingVideoIdRef.current = null;
+      setIsProcessingQueue(false);
     }
-  }, [duration, loadFFmpeg, muteOriginalAudio, outputFormat, selectedFile, selection, isSameFormat, useFastCut]);
+  }, [videos, loadFFmpeg]);
+
+  const downloadAllZip = useCallback(async () => {
+    const doneVideos = videos.filter((v) => v.status === "done" && v.outputFile);
+    if (doneVideos.length === 0) return;
+
+    setIsZipping(true);
+    try {
+      const zip = new JSZip();
+      doneVideos.forEach((v) => {
+        if (v.outputFile) {
+          zip.file(v.outputFile.name, v.outputFile);
+        }
+      });
+
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(zipBlob);
+      trackUrl(url);
+
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "medianinja-videos.zip";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (zipErr) {
+      console.error(zipErr);
+    } finally {
+      setIsZipping(false);
+    }
+  }, [videos]);
+
+  const currentProcessingVideo = useMemo(() => {
+    return videos.find((v) => v.status === "processing");
+  }, [videos]);
 
   return (
     <section className="relative overflow-hidden rounded-lg border border-white/10 bg-neutral-900/80 p-4 sm:p-6">
-      {status === "processing" ? <RenderingOverlay progress={progress} message={message} /> : null}
+      
+      {/* Global processing warning or error banner */}
+      {error && (
+        <div className="mb-4 rounded-md border border-red-400/30 bg-red-400/10 px-3 py-2 text-sm text-red-200 flex justify-between items-center">
+          <span>{error}</span>
+          <button type="button" onClick={() => setError(null)} className="text-red-400 hover:text-red-200">✕</button>
+        </div>
+      )}
 
-      {!previewUrl ? (
+      {/* Global Queue Actions */}
+      {videos.length > 0 && (
+        <div className="mb-4 flex flex-col gap-3 rounded-lg border border-white/10 bg-neutral-950 p-4 sm:flex-row sm:items-center sm:justify-between shadow-inner">
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-white">Xử lý hàng loạt ({videos.length} video)</h3>
+            <p className="mt-1 text-xs text-neutral-400">
+              Hoàn thành {videos.filter((v) => v.status === "done").length}/{videos.length} video.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              disabled={isProcessingQueue || videos.filter((v) => v.status !== "done").length === 0}
+              onClick={processQueue}
+              className="flex items-center gap-2 rounded-md bg-cyan-300 px-4 py-2 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isProcessingQueue ? (
+                <>
+                  <span className="h-3 w-3 animate-spin rounded-full border border-neutral-950 border-t-transparent inline-block" />
+                  <span>Đang xử lý queue...</span>
+                </>
+              ) : (
+                <span>Bắt đầu xử lý</span>
+              )}
+            </button>
+            <button
+              type="button"
+              disabled={isZipping || videos.filter((v) => v.status === "done").length === 0}
+              onClick={downloadAllZip}
+              className="rounded-md border border-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:border-cyan-300/70 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isZipping ? "Đang tạo ZIP..." : "Tải tất cả ZIP"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {videos.length === 0 ? (
         <UploadPanel
           inputRef={inputRef}
           isDraggingFile={isDraggingFile}
@@ -359,160 +536,315 @@ export default function VideoProcessor() {
           onFiles={handleFiles}
         />
       ) : (
-        <div className="grid gap-5 xl:grid-cols-[1fr_300px]">
-          <div className="min-w-0">
-            <div className="mx-auto max-w-3xl overflow-hidden rounded-lg border border-white/10 bg-black">
-              <video
-                className="aspect-video w-full bg-black object-contain"
-                controls
-                onLoadedMetadata={handleLoadedMetadata}
-                onTimeUpdate={handleTimeUpdate}
-                onPause={handlePause}
-                ref={videoRef}
-                src={previewUrl}
-              />
+        <div className="grid gap-5 xl:grid-cols-[280px_1fr]">
+          {/* Left panel: Queue Sidebar List */}
+          <div className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-4">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <h3 className="text-xs font-bold text-neutral-300 uppercase tracking-wider">Hàng đợi</h3>
+              <span className="rounded-full bg-cyan-300/10 px-2 py-0.5 text-[10px] text-cyan-300 font-mono">
+                {videos.length} file
+              </span>
             </div>
 
-            {/* Điều khiển phát thử đoạn chọn */}
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-white/10 bg-white/[0.03] p-3">
-              <div className="flex items-center gap-3">
-                <button
-                  className="flex items-center gap-2 rounded-md bg-cyan-300 px-4 py-1.5 text-xs font-semibold text-neutral-950 transition hover:bg-cyan-200"
-                  onClick={togglePlaySelection}
-                  type="button"
-                >
-                  {isPlayingSelection ? (
-                    <>
-                      <PauseIcon />
-                      <span>Dừng phát thử</span>
-                    </>
-                  ) : (
-                    <>
-                      <PlayIcon />
-                      <span>Phát thử đoạn chọn</span>
-                    </>
-                  )}
-                </button>
+            <div className="flex-1 overflow-y-auto max-h-[350px] xl:max-h-[500px] space-y-2 pr-1 custom-scrollbar">
+              {videos.map((video, idx) => {
+                const isActive = idx === activeIndex;
+                return (
+                  <div
+                    key={video.id}
+                    className={[
+                      "group relative flex items-center justify-between gap-2 rounded-lg border p-3 cursor-pointer transition text-left",
+                      isActive
+                        ? "border-cyan-300/50 bg-cyan-300/[0.05]"
+                        : "border-white/5 bg-neutral-950/40 hover:border-white/15 hover:bg-neutral-900/40",
+                    ].join(" ")}
+                    onClick={() => {
+                      if (isProcessingQueue) return;
+                      setActiveIndex(idx);
+                    }}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-neutral-500 font-mono">#{idx + 1}</span>
+                        <p className="truncate text-xs font-semibold text-white group-hover:text-cyan-200 transition">
+                          {video.displayName}
+                        </p>
+                      </div>
+                      <div className="mt-1 flex items-center gap-2 text-[10px] text-neutral-500">
+                        <span>{formatBytes(video.originalFile.size)}</span>
+                        <span>•</span>
+                        <span>{video.duration > 0 ? formatDuration(video.duration) : "Đang đọc..."}</span>
+                      </div>
 
-                <label className="flex items-center gap-2 text-xs text-neutral-300 cursor-pointer">
-                  <input
-                    checked={loopSelection}
-                    className="h-3.5 w-3.5 accent-cyan-300 rounded"
-                    onChange={(event) => setLoopSelection(event.target.checked)}
-                    type="checkbox"
-                  />
-                  <span>Lặp lại (Loop)</span>
-                </label>
-              </div>
+                      {/* Status and Progress bar */}
+                      <div className="mt-2 flex items-center gap-1.5">
+                        {video.status === "processing" && (
+                          <div className="w-full">
+                            <div className="flex justify-between text-[8px] text-cyan-300 font-medium mb-1">
+                              <span>Đang render...</span>
+                              <span>{Math.round(video.progress)}%</span>
+                            </div>
+                            <div className="h-1 overflow-hidden rounded-full bg-neutral-900">
+                              <div
+                                className="h-full rounded-full bg-cyan-300 transition-all duration-100"
+                                style={{ width: `${video.progress}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                        {video.status === "done" && (
+                          <span className="inline-flex items-center gap-1 text-[9px] font-medium text-emerald-400">
+                            <CheckIcon /> Xong ({formatBytes(video.outputSize || 0)})
+                          </span>
+                        )}
+                        {video.status === "error" && (
+                          <span className="inline-flex items-center gap-1 text-[9px] font-medium text-red-400">
+                            <ErrorIcon /> Lỗi
+                          </span>
+                        )}
+                        {video.status === "idle" && (
+                          <span className="text-[9px] text-neutral-400">Đang chờ...</span>
+                        )}
+                      </div>
+                    </div>
 
-              <div className="text-xs text-neutral-400">
-                Khoảng phát: <span className="font-semibold text-cyan-200">{formatTimestamp(selection[0])}</span> - <span className="font-semibold text-cyan-200">{formatTimestamp(selection[1])}</span>
-              </div>
+                    {/* Delete item button */}
+                    {!isProcessingQueue && (
+                      <button
+                        type="button"
+                        className="opacity-0 group-hover:opacity-100 p-1.5 rounded bg-neutral-900 hover:bg-red-950/50 hover:text-red-300 text-neutral-400 transition"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeVideo(idx);
+                        }}
+                        aria-label="Xóa video khỏi hàng đợi"
+                      >
+                        <TrashIcon />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
-            <TimelineEditor
-              activeHandle={activeHandle}
-              duration={duration}
-              endTime={selection[1]}
-              onChange={updateSelection}
-              onRelease={() => setActiveHandle(null)}
-              startTime={selection[0]}
-            />
-
-            <div className="mt-4 flex flex-col gap-3 rounded-lg border border-white/10 bg-neutral-950 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0 text-sm">
-                <p className="truncate font-medium text-neutral-200">{selectedFile?.name}</p>
-                <p className="mt-1 text-neutral-500">
-                  {selectedFile ? formatBytes(selectedFile.size) : ""} • Đoạn cắt{" "}
-                  {formatDuration(clipDuration)}
-                </p>
-              </div>
+            <div className="grid grid-cols-2 gap-2 border-t border-white/10 pt-3">
               <button
-                className="rounded-md border border-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:border-cyan-300/70 hover:text-cyan-200"
-                onClick={() => inputRef.current?.click()}
                 type="button"
+                disabled={isProcessingQueue}
+                onClick={() => inputRef.current?.click()}
+                className="flex items-center justify-center gap-1.5 rounded bg-white/5 border border-white/15 px-2 py-2 text-xs font-semibold text-white hover:bg-white/10 transition"
               >
-                Đổi video
+                <PlusIcon /> Thêm video
+              </button>
+              <button
+                type="button"
+                disabled={isProcessingQueue || videos.length === 0}
+                onClick={clearAllVideos}
+                className="rounded bg-neutral-950 border border-white/5 px-2 py-2 text-xs font-semibold text-neutral-400 hover:border-red-950 hover:text-red-300 transition"
+              >
+                Xóa tất cả
               </button>
             </div>
           </div>
 
-          <aside className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-            <h3 className="text-base font-semibold text-white">Xuất file</h3>
-
-            <div className="mt-4">
-              <label className="text-sm font-medium text-neutral-300" htmlFor="output-format">
-                Định dạng
-              </label>
-              <select
-                className="mt-2 w-full rounded-md border border-white/10 bg-neutral-950 px-3 py-2 text-sm text-white outline-none focus:border-cyan-300"
-                id="output-format"
-                onChange={(event) => {
-                  const nextFormat = event.target.value as OutputFormat;
-                  setOutputFormat(nextFormat);
-                  if (nextFormat === "mp3") setMuteOriginalAudio(false);
-                }}
-                value={outputFormat}
-              >
-                <option value="mp4">MP4</option>
-                <option value="webm">WebM</option>
-                <option value="gif">GIF (Tạo ảnh động)</option>
-                <option value="mp3">MP3 (Chỉ lấy âm thanh)</option>
-              </select>
-            </div>
-
-            <label className="mt-4 flex items-center gap-3 rounded-md bg-neutral-950 p-3 text-sm text-neutral-300">
-              <input
-                checked={muteOriginalAudio}
-                className="h-4 w-4 accent-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={outputFormat === "mp3"}
-                onChange={(event) => setMuteOriginalAudio(event.target.checked)}
-                type="checkbox"
-              />
-              <span>Tắt âm thanh gốc</span>
-            </label>
-
-            {isSameFormat && (
-              <label className="mt-2 flex items-center gap-3 rounded-md bg-neutral-950 p-3 text-sm text-neutral-300 cursor-pointer">
-                <input
-                  checked={useFastCut}
-                  className="h-4 w-4 accent-cyan-300"
-                  onChange={(event) => setUseFastCut(event.target.checked)}
-                  type="checkbox"
-                />
-                <div className="flex flex-col">
-                  <span className="font-semibold text-cyan-200">Cắt nhanh (Fast Cut)</span>
-                  <span className="text-[10px] text-neutral-400 leading-tight mt-0.5">Không mã hóa lại, nhanh hơn 100 lần</span>
+          {/* Right panel: Active Video Editor */}
+          <div className="relative min-w-0">
+            {isProcessingQueue && currentProcessingVideo && (
+              <div className="absolute inset-0 z-30 grid place-items-center bg-neutral-950/80 p-6 backdrop-blur-sm rounded-lg">
+                <div className="w-full max-w-sm rounded-lg border border-white/10 bg-neutral-900 p-5 text-center shadow-2xl">
+                  <div className="mx-auto h-12 w-12 animate-spin rounded-full border-2 border-cyan-300 border-t-transparent" />
+                  <p className="mt-4 text-sm font-semibold text-white">Đang xử lý hàng đợi...</p>
+                  <p className="mt-1 text-xs text-neutral-400">Đang render: {currentProcessingVideo.displayName}</p>
+                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-neutral-950">
+                    <div
+                      className="h-full rounded-full bg-cyan-300 transition-all duration-100"
+                      style={{ width: `${currentProcessingVideo.progress}%` }}
+                    />
+                  </div>
+                  <p className="mt-2 text-xs text-neutral-400">{Math.round(currentProcessingVideo.progress)}%</p>
                 </div>
-              </label>
+              </div>
             )}
 
-            <div className="mt-4 rounded-md bg-neutral-950 p-3 text-sm text-neutral-300">
-              <div className="flex items-center justify-between">
-                <span>Start</span>
-                <span className="font-medium text-white">{formatTimestamp(selection[0])}</span>
-              </div>
-              <div className="mt-2 flex items-center justify-between">
-                <span>End</span>
-                <span className="font-medium text-white">{formatTimestamp(selection[1])}</span>
-              </div>
-            </div>
+            {activeVideo ? (
+              <div className="grid gap-5 xl:grid-cols-[1fr_240px]">
+                <div className="min-w-0">
+                  <div className="mx-auto max-w-3xl overflow-hidden rounded-lg border border-white/10 bg-black">
+                    <video
+                      key={activeVideo.id}
+                      className="aspect-video w-full bg-black object-contain"
+                      controls
+                      onLoadedMetadata={handleLoadedMetadata}
+                      onTimeUpdate={handleTimeUpdate}
+                      onPause={handlePause}
+                      ref={videoRef}
+                      src={activeVideo.previewUrl}
+                    />
+                  </div>
 
-            <button
-              className="mt-5 w-full rounded-md bg-cyan-300 px-4 py-2 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={!canProcess}
-              onClick={() => void processVideo()}
-              type="button"
-            >
-              {processButtonLabel}
-            </button>
-          </aside>
+                  {/* Play Selection Controls */}
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-white/10 bg-white/[0.03] p-3">
+                    <div className="flex items-center gap-3">
+                      <button
+                        className="flex items-center gap-2 rounded-md bg-cyan-300 px-4 py-1.5 text-xs font-semibold text-neutral-950 transition hover:bg-cyan-200"
+                        onClick={togglePlaySelection}
+                        type="button"
+                        disabled={isProcessingQueue}
+                      >
+                        {isPlayingSelection ? (
+                          <>
+                            <PauseIcon />
+                            <span>Dừng phát thử</span>
+                          </>
+                        ) : (
+                          <>
+                            <PlayIcon />
+                            <span>Phát thử đoạn chọn</span>
+                          </>
+                        )}
+                      </button>
+
+                      <label className="flex items-center gap-2 text-xs text-neutral-300 cursor-pointer">
+                        <input
+                          checked={loopSelection}
+                          className="h-3.5 w-3.5 accent-cyan-300 rounded"
+                          onChange={(event) => setLoopSelection(event.target.checked)}
+                          type="checkbox"
+                          disabled={isProcessingQueue}
+                        />
+                        <span>Lặp lại (Loop)</span>
+                      </label>
+                    </div>
+
+                    <div className="text-xs text-neutral-400">
+                      Khoảng phát: <span className="font-semibold text-cyan-200">{formatTimestamp(activeVideo.selection[0])}</span> - <span className="font-semibold text-cyan-200">{formatTimestamp(activeVideo.selection[1])}</span>
+                    </div>
+                  </div>
+
+                  <TimelineEditor
+                    activeHandle={activeHandle}
+                    duration={activeVideo.duration}
+                    endTime={activeVideo.selection[1]}
+                    onChange={updateSelection}
+                    onRelease={() => setActiveHandle(null)}
+                    startTime={activeVideo.selection[0]}
+                  />
+
+                  <div className="mt-4 flex flex-col gap-3 rounded-lg border border-white/10 bg-neutral-950 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0 text-sm">
+                      <p className="truncate font-medium text-neutral-200">{activeVideo.displayName}</p>
+                      <p className="mt-1 text-xs text-neutral-500">
+                        {formatBytes(activeVideo.originalFile.size)} • Đoạn cắt{" "}
+                        {formatDuration(clipDuration)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {activeVideo.error && (
+                    <p className="mt-4 rounded-md border border-red-400/30 bg-red-400/10 px-3 py-2 text-xs text-red-200">
+                      {activeVideo.error}
+                    </p>
+                  )}
+                  {activeVideo.videoWarning && (
+                    <p className="mt-4 rounded-md border border-yellow-400/30 bg-yellow-400/10 px-3 py-2 text-xs text-yellow-200">
+                      {activeVideo.videoWarning}
+                    </p>
+                  )}
+
+                  {activeVideo.status === "done" && activeVideo.downloadUrl && (
+                    <div className="mt-4 rounded-md border border-emerald-400/20 bg-emerald-400/10 p-3 text-sm text-emerald-100">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate font-semibold text-xs">
+                          {withSuffix(activeVideo.originalFile.name, `trimmed.${activeVideo.outputFormat}`)}
+                        </span>
+                        <a
+                          className="shrink-0 rounded bg-cyan-300 px-3 py-1 text-xs font-bold text-neutral-950 hover:bg-cyan-200 transition"
+                          download={withSuffix(activeVideo.originalFile.name, `trimmed.${activeVideo.outputFormat}`)}
+                          href={activeVideo.downloadUrl}
+                        >
+                          Tải về
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <aside className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+                  <h3 className="text-sm font-semibold text-white">Cấu hình xuất</h3>
+
+                  <div className="mt-4">
+                    <label className="text-xs font-medium text-neutral-300" htmlFor="output-format">
+                      Định dạng
+                    </label>
+                    <select
+                      className="mt-2 w-full rounded-md border border-white/10 bg-neutral-950 px-3 py-2 text-xs text-white outline-none focus:border-cyan-300"
+                      id="output-format"
+                      disabled={isProcessingQueue}
+                      onChange={(event) => {
+                        const nextFormat = event.target.value as OutputFormat;
+                        handleFormatChange(nextFormat);
+                      }}
+                      value={activeVideo.outputFormat}
+                    >
+                      <option value="mp4">MP4</option>
+                      <option value="webm">WebM</option>
+                      <option value="gif">GIF (Tạo ảnh động)</option>
+                      <option value="mp3">MP3 (Chỉ lấy âm thanh)</option>
+                    </select>
+                  </div>
+
+                  <label className="mt-4 flex items-center gap-3 rounded-md bg-neutral-950 p-3 text-xs text-neutral-300 cursor-pointer">
+                    <input
+                      checked={activeVideo.muteAudio}
+                      className="h-4 w-4 accent-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={activeVideo.outputFormat === "mp3" || isProcessingQueue}
+                      onChange={(event) => handleMuteChange(event.target.checked)}
+                      type="checkbox"
+                    />
+                    <span>Tắt âm thanh</span>
+                  </label>
+
+                  {isSameFormat && (
+                    <label className="mt-2 flex items-center gap-3 rounded-md bg-neutral-950 p-3 text-xs text-neutral-300 cursor-pointer">
+                      <input
+                        checked={activeVideo.useFastCut}
+                        className="h-4 w-4 accent-cyan-300"
+                        disabled={isProcessingQueue}
+                        onChange={(event) => handleFastCutChange(event.target.checked)}
+                        type="checkbox"
+                      />
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-cyan-200 text-xs">Cắt nhanh (Fast Cut)</span>
+                        <span className="text-[9px] text-neutral-400 leading-tight mt-0.5">Không encode lại, nhanh hơn 100 lần</span>
+                      </div>
+                    </label>
+                  )}
+
+                  <div className="mt-4 rounded-md bg-neutral-950 p-3 text-xs text-neutral-300">
+                    <div className="flex items-center justify-between">
+                      <span>Bắt đầu</span>
+                      <span className="font-medium text-white">{formatTimestamp(activeVideo.selection[0])}</span>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between">
+                      <span>Kết thúc</span>
+                      <span className="font-medium text-white">{formatTimestamp(activeVideo.selection[1])}</span>
+                    </div>
+                  </div>
+                </aside>
+              </div>
+            ) : (
+              <div className="grid h-[300px] place-items-center rounded-lg border border-dashed border-white/10 bg-neutral-950/40 text-neutral-400">
+                Vui lòng chọn hoặc tải lên video để biên tập
+              </div>
+            )}
+          </div>
         </div>
       )}
 
       <input
         accept="video/mp4,video/quicktime,video/webm"
         className="sr-only"
+        multiple
         onChange={(event) => {
           if (event.target.files) handleFiles(event.target.files);
           event.currentTarget.value = "";
@@ -521,25 +853,30 @@ export default function VideoProcessor() {
         type="file"
       />
 
-      <StatusPanel error={error} warning={videoWarning} message={message} progress={progress} status={status} />
-
-      {result ? (
-        <div className="mt-4 flex flex-col gap-3 rounded-lg border border-emerald-400/20 bg-emerald-400/10 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-emerald-100">{result.fileName}</p>
-            <p className="mt-1 text-xs text-emerald-200/80">{formatBytes(result.size)}</p>
-          </div>
-          <a
-            className="rounded-md bg-cyan-300 px-4 py-2 text-center text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200"
-            download={result.fileName}
-            href={result.url}
-          >
-            Download
-          </a>
+      {/* Global loading status (primarily for FFmpeg WebAssembly init) */}
+      {(status === "loading" || status === "error") && (
+        <div className="mt-4">
+          <StatusPanel error={error} message={message} progress={progress} status={status} />
         </div>
-      ) : null}
+      )}
     </section>
   );
+
+  function handleFormatChange(nextFormat: OutputFormat) {
+    if (activeIndex === null) return;
+    updateActiveVideo({
+      outputFormat: nextFormat,
+      muteAudio: nextFormat === "mp3" ? false : videos[activeIndex].muteAudio,
+    });
+  }
+
+  function handleMuteChange(checked: boolean) {
+    updateActiveVideo({ muteAudio: checked });
+  }
+
+  function handleFastCutChange(checked: boolean) {
+    updateActiveVideo({ useFastCut: checked });
+  }
 }
 
 function UploadPanel({
@@ -579,10 +916,10 @@ function UploadPanel({
       <div className="mb-6 grid h-16 w-16 place-items-center rounded-full bg-cyan-300/10 text-cyan-200">
         <VideoIcon />
       </div>
-      <p className="text-xl font-semibold text-white">Chọn video để cắt trực quan</p>
+      <p className="text-xl font-semibold text-white">Chọn nhiều video để cắt trực quan</p>
       <p className="mt-3 max-w-xl text-sm leading-6 text-neutral-400">
         Hỗ trợ MP4, MOV và WebM. Video chạy cục bộ trong trình duyệt bằng FFmpeg.wasm,
-        không upload lên server.
+        không upload lên server. Sắp xếp tuần tự tránh tràn bộ nhớ.
       </p>
       <button
         className="mt-7 rounded-md bg-cyan-300 px-4 py-2 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-300/70 focus:ring-offset-2 focus:ring-offset-neutral-950"
@@ -658,7 +995,7 @@ function TimelineEditor({
     <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-4">
       <div className="mb-3 flex items-center justify-between text-sm">
         <span className="font-medium text-white">Timeline</span>
-        <span className="text-neutral-400">{formatTimestamp(duration)}</span>
+        <span className="text-neutral-400 font-mono">{formatTimestamp(duration)}</span>
       </div>
 
       <div
@@ -746,9 +1083,9 @@ function TimelineEditor({
       </div>
 
       <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
-        <span>{formatTimestamp(startTime)}</span>
+        <span className="font-mono">{formatTimestamp(startTime)}</span>
         <span>Đoạn cắt {formatDuration(endTime - startTime)}</span>
-        <span>{formatTimestamp(endTime)}</span>
+        <span className="font-mono">{formatTimestamp(endTime)}</span>
       </div>
     </div>
   );
@@ -756,13 +1093,11 @@ function TimelineEditor({
 
 function StatusPanel({
   error,
-  warning,
   message,
   progress,
   status,
 }: {
   error: string | null;
-  warning?: string | null;
   message: string;
   progress: number;
   status: ProcessorStatus;
@@ -776,7 +1111,7 @@ function StatusPanel({
       <div className="mt-3 h-2 overflow-hidden rounded-full bg-neutral-950">
         <div
           className={[
-            "h-full rounded-full transition-all",
+            "h-full rounded-full transition-all duration-100",
             status === "error" ? "bg-red-300" : "bg-cyan-300",
           ].join(" ")}
           style={{ width: `${clamp(progress, 0, 100)}%` }}
@@ -785,11 +1120,6 @@ function StatusPanel({
       {error ? (
         <p className="mt-4 rounded-md border border-red-400/30 bg-red-400/10 px-3 py-2 text-sm text-red-200">
           {error}
-        </p>
-      ) : null}
-      {warning ? (
-        <p className="mt-4 rounded-md border border-yellow-400/30 bg-yellow-400/10 px-3 py-2 text-sm text-yellow-200">
-          {warning}
         </p>
       ) : null}
     </div>
@@ -804,7 +1134,7 @@ function RenderingOverlay({ message, progress }: { message: string; progress: nu
         <p className="mt-4 text-sm font-semibold text-white">{message}</p>
         <div className="mt-4 h-2 overflow-hidden rounded-full bg-neutral-950">
           <div
-            className="h-full rounded-full bg-cyan-300 transition-all"
+            className="h-full rounded-full bg-cyan-300 transition-all duration-100"
             style={{ width: `${clamp(progress, 0, 100)}%` }}
           />
         </div>
@@ -877,6 +1207,7 @@ function buildFFmpegArgs({
     return args;
   }
 
+  // WebM fallback
   args.push("-c:v", "libvpx-vp9", "-b:v", "1M");
   if (muteAudio) {
     args.push("-an");
@@ -900,13 +1231,6 @@ function mimeTypeForFormat(format: OutputFormat) {
   if (format === "mp3") return "audio/mpeg";
   if (format === "mp4") return "video/mp4";
   return "video/webm";
-}
-
-function messageForFormat(format: OutputFormat) {
-  if (format === "gif") return "Đang render GIF 15fps...";
-  if (format === "mp3") return "Đang trích xuất âm thanh MP3...";
-  if (format === "mp4") return "Đang render MP4...";
-  return "Đang render WebM...";
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -940,6 +1264,45 @@ function formatTimestamp(seconds: number) {
 function formatDuration(seconds: number) {
   if (!Number.isFinite(seconds) || seconds <= 0) return "0.0s";
   return `${seconds.toFixed(1)}s`;
+}
+
+function withSuffix(filename: string, suffix: string) {
+  const lastDotIndex = filename.lastIndexOf(".");
+  if (lastDotIndex <= 0) return `${filename}-${suffix}`;
+  return `${filename.slice(0, lastDotIndex)}-${suffix}${filename.slice(lastDotIndex)}`;
+}
+
+// Icons
+function CheckIcon() {
+  return (
+    <svg className="h-3 w-3 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+    </svg>
+  );
+}
+
+function ErrorIcon() {
+  return (
+    <svg className="h-3 w-3 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+    </svg>
+  );
 }
 
 function VideoIcon() {

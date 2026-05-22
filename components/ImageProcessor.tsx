@@ -475,7 +475,7 @@ async function compressImageFile(
     maxSizeMB: 30, // Đặt giới hạn dung lượng lớn để nén theo chất lượng
     initialQuality: quality / 100,
     preserveExif: false,
-    useWebWorker: false,
+    useWebWorker: true,
     onProgress,
   };
 
@@ -594,7 +594,7 @@ async function clearMetadataFile(file: File) {
       maxIteration: 1,
       maxSizeMB: Math.max(file.size / 1024 / 1024 + 1, 4),
       preserveExif: false,
-      useWebWorker: false,
+      useWebWorker: true,
     });
 
     return new File([cleanFile], withSuffix(file.name, "private"), {
