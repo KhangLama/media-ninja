@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { LanguageProvider } from "@/components/LanguageContext";
 import "./globals.css";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://media-ninja.vercel.app";
@@ -115,7 +116,9 @@ export default function RootLayout({
   return (
     <html lang="vi" className="h-full antialiased">
       <body className="min-h-full flex flex-col">
-        {children}
+        <LanguageProvider>
+          {children}
+        </LanguageProvider>
         <SpeedInsights />
         <script
           type="application/ld+json"
