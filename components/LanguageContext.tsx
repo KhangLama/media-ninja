@@ -8,10 +8,8 @@ type Translations = Record<string, string>;
 
 const viTranslations: Translations = {
   // Common / General
-  "open_source": "Open Source",
   "tools": "Công cụ",
   "privacy": "Riêng tư",
-  "github": "GitHub",
   "none": "Không có",
 
   // Home Page
@@ -37,7 +35,6 @@ const viTranslations: Translations = {
   // Footer
   "footer_tagline": "© 2026 MediaNinja. Local-first media tools.",
   "footer_privacy_note": "Không upload file mặc định. Không khóa dữ liệu của bạn.",
-  "footer_github_link": "Mã nguồn mở trên GitHub",
 
   // Image Processor Dropzone
   "img_drop_title": "Nén ảnh trong trình duyệt",
@@ -247,10 +244,8 @@ const viTranslations: Translations = {
 
 const enTranslations: Translations = {
   // Common / General
-  "open_source": "Open Source",
   "tools": "Tools",
   "privacy": "Privacy",
-  "github": "GitHub",
   "none": "None",
 
   // Home Page
@@ -276,7 +271,6 @@ const enTranslations: Translations = {
   // Footer
   "footer_tagline": "© 2026 MediaNinja. Local-first media tools.",
   "footer_privacy_note": "No file uploads by default. No data lock-in.",
-  "footer_github_link": "Open Source on GitHub",
 
   // Image Processor Dropzone
   "img_drop_title": "Compress Images in Browser",
