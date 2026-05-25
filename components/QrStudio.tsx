@@ -47,7 +47,7 @@ export default function QrStudio() {
   useEffect(() => {
     if (typeof window !== "undefined") {
       import("qr-code-styling").then((module) => {
-        setQrCodeStylingLib(module.default);
+        setQrCodeStylingLib(() => module.default);
       }).catch((err) => console.error("Error loading qr-code-styling:", err));
     }
   }, []);
