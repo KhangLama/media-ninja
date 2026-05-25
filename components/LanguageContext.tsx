@@ -296,7 +296,16 @@ const viTranslations: Translations = {
   "qr_scan_status_error": "Không tìm thấy hoặc không đọc được mã QR trong ảnh.",
   "qr_scan_result": "Nội dung giải mã QR",
   "qr_scan_btn_open": "Mở liên kết",
-  "qr_scan_btn_copy": "Sao chép nội dung"
+  "qr_scan_btn_copy": "Sao chép nội dung",
+  "qr_loading_generator": "Đang tải bộ tạo mã...",
+  "qr_sidebar_title": "Cấu hình QR Code",
+  "qr_scan_clear_image": "Xóa ảnh",
+  "qr_scan_guide_title": "Hướng dẫn quét QR",
+  "qr_scan_guide_desc1": "Tải lên một hình ảnh (PNG, JPEG, WebP) có chứa mã QR.",
+  "qr_scan_guide_desc2_part1": "Hệ thống sẽ quét mã QR tự động bằng thư viện ",
+  "qr_scan_guide_desc2_part2": " chạy offline trực tiếp trong trình duyệt để giải mã liên kết hoặc thông điệp văn bản ẩn trong ảnh.",
+  "qr_color_solid_short": "Màu đơn",
+  "qr_color_gradient_short": "Màu chuyển"
 };
 
 const enTranslations: Translations = {
@@ -589,7 +598,16 @@ const enTranslations: Translations = {
   "qr_scan_status_error": "No QR code found or could not read QR code from the image.",
   "qr_scan_result": "Decoded QR Content",
   "qr_scan_btn_open": "Open Link",
-  "qr_scan_btn_copy": "Copy Content"
+  "qr_scan_btn_copy": "Copy Content",
+  "qr_loading_generator": "Loading generator...",
+  "qr_sidebar_title": "QR Code Configuration",
+  "qr_scan_clear_image": "Clear image",
+  "qr_scan_guide_title": "QR Scan Guide",
+  "qr_scan_guide_desc1": "Upload an image (PNG, JPEG, WebP) containing a QR code.",
+  "qr_scan_guide_desc2_part1": "The system will automatically scan the QR code using the ",
+  "qr_scan_guide_desc2_part2": " library running offline directly in your browser to decode the link or text message hidden in the image.",
+  "qr_color_solid_short": "Solid",
+  "qr_color_gradient_short": "Gradient"
 };
 
 const translations: Record<Language, Translations> = {

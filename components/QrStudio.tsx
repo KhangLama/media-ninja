@@ -291,7 +291,7 @@ export default function QrStudio() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                   </svg>
-                  <span>Loading generator...</span>
+                  <span>{t("qr_loading_generator")}</span>
                 </div>
               )}
             </div>
@@ -318,7 +318,7 @@ export default function QrStudio() {
           {/* Generator Controls Sidebar */}
           <div className="rounded-xl border border-white/5 bg-neutral-900/60 p-4 sm:p-5 space-y-5">
             <h3 className="text-md font-bold text-white tracking-wide border-b border-white/5 pb-2.5">
-              Cấu hình QR Code
+              {t("qr_sidebar_title")}
             </h3>
 
             {/* Input Content */}
@@ -448,7 +448,7 @@ export default function QrStudio() {
                     ].join(" ")}
                     type="button"
                   >
-                    Solid
+                    {t("qr_color_solid_short")}
                   </button>
                   <button
                     onClick={() => setColorType("gradient")}
@@ -458,7 +458,7 @@ export default function QrStudio() {
                     ].join(" ")}
                     type="button"
                   >
-                    Gradient
+                    {t("qr_color_gradient_short")}
                   </button>
                 </div>
               </div>
@@ -591,7 +591,7 @@ export default function QrStudio() {
                   className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-red-400 rounded-lg border border-white/10 bg-neutral-900/60 hover:bg-red-950/20 hover:text-red-300 transition cursor-pointer"
                   type="button"
                 >
-                  Xóa ảnh
+                  {t("qr_scan_clear_image")}
                 </button>
               </div>
 
@@ -660,13 +660,13 @@ export default function QrStudio() {
           {/* Sidebar */}
           <div className="rounded-xl border border-white/5 bg-neutral-900/60 p-4 sm:p-5 space-y-5 text-sm text-neutral-400 leading-relaxed">
             <h3 className="text-md font-bold text-white tracking-wide border-b border-white/5 pb-2.5">
-              Hướng dẫn quét QR
+              {t("qr_scan_guide_title")}
             </h3>
             <p>
-              Tải lên một hình ảnh (PNG, JPEG, WebP) có chứa mã QR.
+              {t("qr_scan_guide_desc1")}
             </p>
             <p>
-              Hệ thống sẽ quét mã QR tự động bằng thư viện <code className="text-cyan-300 font-mono">jsQR</code> chạy offline trực tiếp trong trình duyệt để giải mã liên kết hoặc thông điệp văn bản ẩn trong ảnh.
+              {t("qr_scan_guide_desc2_part1")}<code className="text-cyan-300 font-mono">jsQR</code>{t("qr_scan_guide_desc2_part2")}
             </p>
           </div>
         </div>
