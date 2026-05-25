@@ -496,21 +496,30 @@ export default function PdfProcessor() {
         const helveticaFont = await pdf.embedFont(StandardFonts.HelveticaBold);
         const { r, g, b } = hexToRgbFraction(watermarkColor);
 
+        const textWidth = helveticaFont.widthOfTextAtSize(watermarkText, watermarkSize);
+        const textHeight = helveticaFont.heightAtSize(watermarkSize);
+        const angleRad = (45 * Math.PI) / 180;
+        const cos = Math.cos(angleRad);
+        const sin = Math.sin(angleRad);
+
         pages.forEach((page) => {
           const { width, height } = page.getSize();
+          const cx = width / 2;
+          const cy = height / 2;
           
-          // Draw watermark centered diagonally
+          // Calculate starting x, y coordinates so the center of the rotated text lies exactly at (cx, cy)
+          const x = cx - (textWidth / 2) * cos + (textHeight / 2) * sin;
+          const y = cy - (textWidth / 2) * sin - (textHeight / 2) * cos;
+
           page.drawText(watermarkText, {
-            x: width / 2,
-            y: height / 2,
+            x,
+            y,
             size: watermarkSize,
             font: helveticaFont,
             color: rgb(r, g, b),
             opacity: watermarkOpacity,
             rotate: degrees(45),
-            xAnchor: "center",
-            yAnchor: "middle",
-          } as any); // Type override since pdf-lib coordinates helper
+          });
         });
 
         const pdfBytes = await pdf.save();
