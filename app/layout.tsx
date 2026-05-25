@@ -78,6 +78,15 @@ export const metadata: Metadata = {
   verification: {
     google: "e95ca6b49c6191fb",
   },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "MediaNinja",
+  },
+};
+
+export const viewport = {
+  themeColor: "#06b6d4",
 };
 
 export default function RootLayout({
