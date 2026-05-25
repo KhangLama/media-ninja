@@ -9,6 +9,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/video-processor",
     "/subtitle-generator",
     "/pdf-tools",
+    "/ocr-extractor",
+    "/qr-studio",
   ];
 
   return routes.map((route) => ({

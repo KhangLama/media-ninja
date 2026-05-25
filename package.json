@@ -16,12 +16,15 @@
     "@vercel/speed-insights": "^2.0.0",
     "browser-image-compression": "^2.0.2",
     "exif-js": "^2.3.0",
+    "jsqr": "^1.4.0",
     "jszip": "^3.10.1",
     "next": "16.2.6",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^5.7.284",
+    "qr-code-styling": "^1.9.2",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

@@ -118,6 +118,9 @@ export default function RootLayout({
       "Offline AI speech-to-text subtitle generation (Whisper-Tiny)",
       "Export subtitles as SRT, VTT, or TXT",
       "Burn-in subtitles into video",
+      "Client-side PDF suite (merge, split, compress, watermark, rotate, convert)",
+      "Offline OCR Text Extractor (extract text from images and PDFs using Tesseract.js)",
+      "Custom QR Code Studio (generate customized QR codes with gradients, logos and scan offline)",
     ],
     inLanguage: ["vi", "en"],
   };

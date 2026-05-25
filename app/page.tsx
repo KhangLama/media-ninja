@@ -15,6 +15,8 @@ const toolCards: ToolCard[] = [
   { id: "video", href: "/video-processor", icon: "🎥" },
   { id: "subtitle", href: "/subtitle-generator", icon: "🎙️" },
   { id: "pdf", href: "/pdf-tools", icon: "📄" },
+  { id: "ocr", href: "/ocr-extractor", icon: "🔍" },
+  { id: "qr", href: "/qr-studio", icon: "📱" },
 ];
 
 export default function Home() {
@@ -46,7 +48,7 @@ function HomeContent() {
         <div className="rounded-lg border border-white/10 bg-white/[0.03] p-5">
           <div className="grid grid-cols-3 gap-3 text-center">
             <Metric value="0" label={t("metric_server_upload")} />
-            <Metric value="4" label={t("metric_media_tools")} />
+            <Metric value="6" label={t("metric_media_tools")} />
             <Metric value="100%" label={t("metric_local_first")} />
           </div>
         </div>
@@ -61,7 +63,7 @@ function HomeContent() {
           </p>
         </div>
 
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {toolCards.map((card) => (
             <ToolCardLink key={card.id} card={card} />
           ))}
@@ -74,9 +76,44 @@ function HomeContent() {
 function ToolCardLink({ card }: { card: ToolCard }) {
   const { t } = useLanguage();
 
-  const titleKey = card.id === "compress" ? "tool_image_title" : card.id === "video" ? "tool_video_title" : card.id === "subtitle" ? "tool_subtitle_title" : "tool_pdf_title";
-  const labelKey = card.id === "compress" ? "tool_image_label" : card.id === "video" ? "tool_video_label" : card.id === "subtitle" ? "tool_subtitle_label" : "tool_pdf_label";
-  const descKey = card.id === "compress" ? "tool_image_desc" : card.id === "video" ? "tool_video_desc" : card.id === "subtitle" ? "tool_subtitle_desc" : "tool_pdf_desc";
+  const titleKey =
+    card.id === "compress"
+      ? "tool_image_title"
+      : card.id === "video"
+      ? "tool_video_title"
+      : card.id === "subtitle"
+      ? "tool_subtitle_title"
+      : card.id === "pdf"
+      ? "tool_pdf_title"
+      : card.id === "ocr"
+      ? "tool_ocr_title"
+      : "tool_qr_title";
+
+  const labelKey =
+    card.id === "compress"
+      ? "tool_image_label"
+      : card.id === "video"
+      ? "tool_video_label"
+      : card.id === "subtitle"
+      ? "tool_subtitle_label"
+      : card.id === "pdf"
+      ? "tool_pdf_label"
+      : card.id === "ocr"
+      ? "tool_ocr_label"
+      : "tool_qr_label";
+
+  const descKey =
+    card.id === "compress"
+      ? "tool_image_desc"
+      : card.id === "video"
+      ? "tool_video_desc"
+      : card.id === "subtitle"
+      ? "tool_subtitle_desc"
+      : card.id === "pdf"
+      ? "tool_pdf_desc"
+      : card.id === "ocr"
+      ? "tool_ocr_desc"
+      : "tool_qr_desc";
 
   return (
     <Link

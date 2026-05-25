@@ -85,6 +85,18 @@ function NavLinks() {
       >
         {t("tool_pdf_title")}
       </Link>
+      <Link
+        href="/ocr-extractor"
+        className="hidden lg:inline text-neutral-400 transition hover:text-white"
+      >
+        {t("tool_ocr_title")}
+      </Link>
+      <Link
+        href="/qr-studio"
+        className="hidden lg:inline text-neutral-400 transition hover:text-white"
+      >
+        {t("tool_qr_title")}
+      </Link>
     </>
   );
 }
