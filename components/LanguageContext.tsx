@@ -239,7 +239,13 @@ const viTranslations: Translations = {
   "pdf_status_ready": "Sẵn sàng",
   "pdf_status_error": "Lỗi xử lý PDF. Vui lòng kiểm tra lại file.",
   "pdf_status_success": "Xử lý thành công!",
-  "pdf_btn_download": "Tải về file kết quả"
+  "pdf_btn_download": "Tải về file kết quả",
+  "pdf_btn_show_preview": "Xem trước",
+  "pdf_btn_hide_preview": "Ẩn xem trước",
+  "pdf_preview_loading": "Đang tải xem trước...",
+  "pdf_preview_prev": "Trước",
+  "pdf_preview_next": "Sau",
+  "pdf_preview_page": "Trang {page} / {total}"
 };
 
 const enTranslations: Translations = {
@@ -475,7 +481,13 @@ const enTranslations: Translations = {
   "pdf_status_ready": "Ready",
   "pdf_status_error": "Failed to process PDF. Please check your files.",
   "pdf_status_success": "Processed successfully!",
-  "pdf_btn_download": "Download Result"
+  "pdf_btn_download": "Download Result",
+  "pdf_btn_show_preview": "Preview",
+  "pdf_btn_hide_preview": "Hide Preview",
+  "pdf_preview_loading": "Loading preview...",
+  "pdf_preview_prev": "Prev",
+  "pdf_preview_next": "Next",
+  "pdf_preview_page": "Page {page} / {total}"
 };
 
 const translations: Record<Language, Translations> = {

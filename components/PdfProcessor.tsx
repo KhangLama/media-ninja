@@ -100,6 +100,7 @@ export default function PdfProcessor() {
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [outputName, setOutputName] = useState("");
   const [pdfjs, setPdfjs] = useState<any>(null);
+  const [showPreview, setShowPreview] = useState(false);
 
   // Configuration States
   const [splitRange, setSplitRange] = useState("1-");
@@ -151,6 +152,7 @@ export default function PdfProcessor() {
     setFiles([]);
     setStatus("idle");
     setProgress(0);
+    setShowPreview(false);
     if (downloadUrl) {
       URL.revokeObjectURL(downloadUrl);
       setDownloadUrl(null);
@@ -296,6 +298,7 @@ export default function PdfProcessor() {
     if (files.length === 0) return;
     setStatus("processing");
     setProgress(10);
+    setShowPreview(false);
 
     try {
       if (downloadUrl) {
@@ -717,24 +720,41 @@ export default function PdfProcessor() {
 
             {/* Results Actions */}
             {status === "success" && downloadUrl && (
-              <div className="rounded-xl border border-cyan-500/20 bg-cyan-950/10 p-5 mt-4">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <h4 className="text-sm font-semibold text-cyan-300">
-                      {t("pdf_status_success")}
-                    </h4>
-                    <p className="text-xs text-neutral-400 mt-1 truncate max-w-sm sm:max-w-md">
-                      {outputName}
-                    </p>
+              <div className="space-y-4 mt-4">
+                <div className="rounded-xl border border-cyan-500/20 bg-cyan-950/10 p-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                      <h4 className="text-sm font-semibold text-cyan-300">
+                        {t("pdf_status_success")}
+                      </h4>
+                      <p className="text-xs text-neutral-400 mt-1 truncate max-w-sm sm:max-w-md">
+                        {outputName}
+                      </p>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      {outputName.endsWith(".pdf") && (
+                        <button
+                          onClick={() => setShowPreview((prev) => !prev)}
+                          className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-neutral-900 px-4 py-2 text-sm font-semibold text-neutral-300 transition hover:bg-neutral-800 cursor-pointer"
+                          type="button"
+                        >
+                          {showPreview ? t("pdf_btn_hide_preview") : t("pdf_btn_show_preview")}
+                        </button>
+                      )}
+                      <button
+                        onClick={triggerDownload}
+                        className="inline-flex items-center gap-2 rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-neutral-950 shadow transition hover:bg-cyan-300 cursor-pointer"
+                        type="button"
+                      >
+                        {t("pdf_btn_download")}
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    onClick={triggerDownload}
-                    className="inline-flex items-center gap-2 rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-neutral-950 shadow transition hover:bg-cyan-300 cursor-pointer"
-                    type="button"
-                  >
-                    {t("pdf_btn_download")}
-                  </button>
                 </div>
+                
+                {showPreview && outputName.endsWith(".pdf") && (
+                  <PdfPreviewer pdfjs={pdfjs} url={downloadUrl} />
+                )}
               </div>
             )}
           </div>
@@ -922,5 +942,135 @@ export default function PdfProcessor() {
         </div>
       )}
     </section>
+  );
+}
+
+// ── PdfPreviewer Helper Component ──
+function PdfPreviewer({ pdfjs, url }: { pdfjs: any; url: string }) {
+  const { t } = useLanguage();
+  const [pdfDoc, setPdfDoc] = useState<any>(null);
+  const [pageNum, setPageNum] = useState(1);
+  const [numPages, setNumPages] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const renderTaskRef = useRef<any>(null);
+
+  // Load PDF document
+  useEffect(() => {
+    if (!pdfjs || !url) return;
+    
+    // Set state asynchronously to avoid React cascading renders warning
+    const timer = setTimeout(() => {
+      setLoading(true);
+      setPageNum(1);
+    }, 0);
+    
+    const loadingTask = pdfjs.getDocument(url);
+    loadingTask.promise.then(
+      (pdf: any) => {
+        setPdfDoc(pdf);
+        setNumPages(pdf.numPages);
+        setLoading(false);
+      },
+      (err: any) => {
+        console.error("Error loading PDF for preview:", err);
+        setLoading(false);
+      }
+    );
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [pdfjs, url]);
+
+  // Render page when pdfDoc or pageNum changes
+  useEffect(() => {
+    if (!pdfDoc || !canvasRef.current) return;
+
+    // Cancel previous render task if active
+    if (renderTaskRef.current) {
+      renderTaskRef.current.cancel();
+    }
+
+    pdfDoc.getPage(pageNum).then((page: any) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const context = canvas.getContext("2d");
+      if (!context) return;
+
+      // 1.5x scale for clean preview quality
+      const viewport = page.getViewport({ scale: 1.5 });
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+
+      const renderContext = {
+        canvasContext: context,
+        viewport: viewport,
+      };
+
+      const renderTask = page.render(renderContext);
+      renderTaskRef.current = renderTask;
+
+      renderTask.promise.then(
+        () => {
+          renderTaskRef.current = null;
+        },
+        (err: any) => {
+          // Ignore canceled renders
+          if (err.name !== "RenderingCancelledException") {
+            console.error("Render error:", err);
+          }
+        }
+      );
+    });
+
+    return () => {
+      if (renderTaskRef.current) {
+        renderTaskRef.current.cancel();
+      }
+    };
+  }, [pdfDoc, pageNum]);
+
+  if (loading) {
+    return (
+      <div className="flex h-48 items-center justify-center text-neutral-400 text-sm">
+        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-cyan-400" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+        </svg>
+        <span>{t("pdf_preview_loading")}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-4 bg-neutral-950/80 p-4 rounded-lg border border-white/5 mt-4">
+      <div className="flex items-center gap-3 text-sm text-neutral-400">
+        <button
+          onClick={() => setPageNum((prev) => Math.max(1, prev - 1))}
+          disabled={pageNum <= 1}
+          className="px-2.5 py-1 rounded bg-neutral-900 border border-white/10 hover:bg-neutral-800 hover:text-white disabled:opacity-30 disabled:hover:bg-neutral-900 disabled:hover:text-neutral-400 cursor-pointer transition text-xs font-semibold"
+          type="button"
+        >
+          {t("pdf_preview_prev")}
+        </button>
+        <span>
+          {t("pdf_preview_page", { page: pageNum, total: numPages })}
+        </span>
+        <button
+          onClick={() => setPageNum((prev) => Math.min(numPages, prev + 1))}
+          disabled={pageNum >= numPages}
+          className="px-2.5 py-1 rounded bg-neutral-900 border border-white/10 hover:bg-neutral-800 hover:text-white disabled:opacity-30 disabled:hover:bg-neutral-900 disabled:hover:text-neutral-400 cursor-pointer transition text-xs font-semibold"
+          type="button"
+        >
+          {t("pdf_preview_next")}
+        </button>
+      </div>
+
+      <div className="w-full max-w-full overflow-auto flex justify-center bg-neutral-900/50 p-2 rounded border border-white/5 max-h-[500px]">
+        <canvas ref={canvasRef} className="max-w-full h-auto shadow-2xl bg-white rounded border border-neutral-700" />
+      </div>
+    </div>
   );
 }
