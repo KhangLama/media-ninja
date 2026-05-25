@@ -140,9 +140,9 @@ export default function PdfProcessor() {
   // Determine file accept constraints based on tab
   const acceptTypes = useMemo(() => {
     if (activeTab === "img-to-pdf") {
-      return "image/png,image/jpeg,image/jpg,image/webp";
+      return "image/png,image/jpeg,image/jpg,image/webp,.png,.jpeg,.jpg,.webp";
     }
-    return "application/pdf";
+    return "application/pdf,.pdf";
   }, [activeTab]);
 
   // Reset queue when active tab changes
@@ -154,6 +154,9 @@ export default function PdfProcessor() {
     if (downloadUrl) {
       URL.revokeObjectURL(downloadUrl);
       setDownloadUrl(null);
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
   };
 
@@ -208,6 +211,10 @@ export default function PdfProcessor() {
       // If single file allowed, replace previous selection
       return [processedFiles[0]];
     });
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   }, [activeTab, allowsMultiple]);
 
   // Remove individual file from list
@@ -224,6 +231,9 @@ export default function PdfProcessor() {
     if (downloadUrl) {
       URL.revokeObjectURL(downloadUrl);
       setDownloadUrl(null);
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
   };
 
