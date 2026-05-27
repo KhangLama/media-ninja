@@ -332,6 +332,7 @@ const viTranslations: Translations = {
   "img_edit_btn_save": "Lưu thay đổi",
   "img_edit_btn_apply_all": "Áp dụng cho tất cả",
   "img_item_btn_edit": "Sửa ảnh",
+  "img_btn_fullscreen": "Xem toàn màn hình",
   "img_side_btn_process": "Bắt đầu xử lý ({count})",
   "img_side_btn_processing": "Đang xử lý..."
 };
@@ -662,6 +663,7 @@ const enTranslations: Translations = {
   "img_edit_btn_save": "Save Changes",
   "img_edit_btn_apply_all": "Apply to All",
   "img_item_btn_edit": "Edit",
+  "img_btn_fullscreen": "Full screen",
   "img_side_btn_process": "Start Processing ({count})",
   "img_side_btn_processing": "Processing..."
 };

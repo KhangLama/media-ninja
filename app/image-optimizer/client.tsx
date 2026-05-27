@@ -8,7 +8,7 @@ export default function ImageOptimizerClient() {
   const { t } = useLanguage();
 
   return (
-    <PageShell>
+    <PageShell maxWidth="max-w-[1440px]">
       <Breadcrumb current={t("tool_image_title")} />
       <section className="flex-1 pb-12">
         <ImageProcessor />

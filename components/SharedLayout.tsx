@@ -6,10 +6,10 @@ import Link from "next/link";
 
 /* ── PageShell: Wraps every page with LanguageProvider + consistent layout ── */
 
-export function PageShell({ children }: { children: React.ReactNode }) {
+export function PageShell({ children, maxWidth = "max-w-6xl" }: { children: React.ReactNode; maxWidth?: string }) {
   return (
     <main className="min-h-screen bg-neutral-950 text-neutral-50">
-      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-6 sm:px-6 lg:px-8">
+      <div className={["mx-auto flex min-h-screen w-full flex-col px-4 py-6 sm:px-6 lg:px-8", maxWidth].join(" ")}>
         <Header />
         {children}
         <Footer />
