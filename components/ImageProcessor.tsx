@@ -418,73 +418,62 @@ export default function ImageProcessor() {
 
   const renderQueue = () => {
     return (
-      <div className="flex flex-col border border-white/10 rounded-xl bg-neutral-900/40 p-4 h-[400px] lg:h-[650px] overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/5 pb-3">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-white text-sm">{t("img_queue_title")}</span>
-            <span className="rounded-full bg-neutral-800 border border-white/5 px-2 py-0.5 text-[10px] font-semibold text-neutral-300">
-              {items.length}
-            </span>
-          </div>
-        </div>
-
-        {/* Action Row */}
-        <div className="grid grid-cols-2 gap-2 mt-3 pb-3 border-b border-white/5 shrink-0">
-          <button
-            className="flex items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-neutral-950 px-2.5 py-1.5 text-xs font-semibold text-neutral-300 transition-all hover:bg-neutral-900 hover:text-white cursor-pointer"
-            onClick={() => inputRef.current?.click()}
-            type="button"
-          >
-            <PlusIcon />
-            {t("img_btn_add")}
-          </button>
-          <button
-            className="flex items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-neutral-950 px-2.5 py-1.5 text-xs font-semibold text-red-400/90 transition-all hover:bg-red-950/20 hover:text-red-300 cursor-pointer"
-            onClick={clearAll}
-            type="button"
-          >
-            <TrashIcon />
-            {t("img_btn_clear_all")}
-          </button>
-        </div>
-
-        {readyItems.length > 0 && (
-          <button
-            className="w-full mt-3 flex items-center justify-center gap-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20 px-3 py-2 text-xs font-bold text-cyan-300 transition-all hover:bg-cyan-500/20 cursor-pointer shrink-0"
-            disabled={isZipping}
-            onClick={() => void downloadAll()}
-            type="button"
-          >
-            📦 {isZipping ? t("img_btn_zipping") : t("img_btn_download_zip", { count: readyItems.length })}
-          </button>
-        )}
-
-        {/* Scrollable Thumbnails List */}
-        <div className="flex-1 overflow-y-auto mt-4 space-y-2.5 pr-1 scrollbar-thin">
-          {items.map((item) => {
-            const isSelected = item.id === activeEditId;
-            const cardFilter = `brightness(${item.editConfig.brightness}%) contrast(${item.editConfig.contrast}%) saturate(${item.editConfig.saturation}%) blur(${item.editConfig.blur / 4}px) ${
-              item.editConfig.filter === "grayscale" ? "grayscale(100%)" :
-              item.editConfig.filter === "sepia" ? "sepia(100%)" :
-              item.editConfig.filter === "invert" ? "invert(100%)" :
-              item.editConfig.filter === "vintage" ? "contrast(120%) saturate(80%) sepia(20%)" : ""
-            }`;
-            const cardTransform = `rotate(${item.editConfig.rotate}deg) scaleX(${item.editConfig.flipH ? -1 : 1}) scaleY(${item.editConfig.flipV ? -1 : 1})`;
-
-            return (
-              <div
-                key={item.id}
-                onClick={() => setActiveEditId(item.id)}
-                className={[
-                  "group flex items-center gap-3 p-2.5 rounded-lg border transition cursor-pointer relative",
-                  isSelected
-                    ? "border-cyan-500/50 bg-cyan-500/5 shadow-md shadow-cyan-500/5"
-                    : "border-white/5 bg-neutral-950/20 hover:border-white/10 hover:bg-neutral-950/40",
-                ].join(" ")}
+      <div className="flex flex-col border border-white/10 rounded-xl bg-neutral-900/40 p-4 h-auto lg:h-[780px] overflow-hidden order-2 lg:order-none">
+        
+        {/* ── MOBILE FILMSTRIP VIEW (lg:hidden) ── */}
+        <div className="lg:hidden flex flex-col gap-2">
+          {/* Header Row */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <span className="font-bold text-white text-xs">{t("img_queue_title")}</span>
+              <span className="rounded-full bg-neutral-800 border border-white/5 px-2 py-0.5 text-[9px] font-semibold text-neutral-300">
+                {items.length}
+              </span>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <button
+                className="flex items-center gap-1 rounded bg-neutral-950 border border-white/10 px-2.5 py-1 text-[10px] font-bold text-neutral-300 transition-all hover:bg-neutral-900 hover:text-white cursor-pointer"
+                onClick={() => inputRef.current?.click()}
+                type="button"
               >
-                {/* Small Image Thumbnail Container */}
-                <div className="relative w-12 h-12 rounded-lg bg-neutral-900 border border-white/5 overflow-hidden flex items-center justify-center shrink-0">
+                <PlusIcon />
+                {t("img_btn_add")}
+              </button>
+              <button
+                className="flex items-center gap-1 rounded bg-neutral-950 border border-white/10 px-2.5 py-1 text-[10px] font-bold text-red-400/90 transition-all hover:bg-red-950/20 hover:text-red-300 cursor-pointer"
+                onClick={clearAll}
+                type="button"
+              >
+                <TrashIcon />
+                {t("img_btn_clear_all")}
+              </button>
+            </div>
+          </div>
+
+          {/* Filmstrip Horizontal List */}
+          <div className="flex flex-row overflow-x-auto gap-2.5 py-1 scrollbar-none">
+            {items.map((item) => {
+              const isSelected = item.id === activeEditId;
+              const cardFilter = `brightness(${item.editConfig.brightness}%) contrast(${item.editConfig.contrast}%) saturate(${item.editConfig.saturation}%) blur(${item.editConfig.blur / 4}px) ${
+                item.editConfig.filter === "grayscale" ? "grayscale(100%)" :
+                item.editConfig.filter === "sepia" ? "sepia(100%)" :
+                item.editConfig.filter === "invert" ? "invert(100%)" :
+                item.editConfig.filter === "vintage" ? "contrast(120%) saturate(80%) sepia(20%)" : ""
+              }`;
+              const cardTransform = `rotate(${item.editConfig.rotate}deg) scaleX(${item.editConfig.flipH ? -1 : 1}) scaleY(${item.editConfig.flipV ? -1 : 1})`;
+
+              return (
+                <div
+                  key={item.id}
+                  onClick={() => setActiveEditId(item.id)}
+                  className={[
+                    "relative w-14 h-14 rounded-lg bg-neutral-900 overflow-hidden flex items-center justify-center shrink-0 border-2 transition cursor-pointer",
+                    isSelected
+                      ? "border-cyan-400 shadow-md shadow-cyan-500/10 scale-[1.02]"
+                      : "border-white/10 hover:border-white/20",
+                  ].join(" ")}
+                >
                   <div className="w-full h-full flex items-center justify-center overflow-hidden" style={{ transform: cardTransform }}>
                     {item.originalPreviewUrl ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
@@ -495,62 +484,171 @@ export default function ImageProcessor() {
                         className="object-cover w-full h-full"
                       />
                     ) : (
-                      <span className="text-[8px] text-neutral-600">No Preview</span>
+                      <span className="text-[6px] text-neutral-600">No Preview</span>
                     )}
                   </div>
-                </div>
 
-                {/* Info text */}
-                <div className="flex-1 min-w-0 text-left">
-                  <p className="truncate text-xs font-semibold text-neutral-200" title={item.displayName}>
-                    {item.displayName}
-                  </p>
-                  <p className="text-[10px] text-neutral-400 mt-0.5">
-                    {formatBytes(item.originalSize)}
-                  </p>
-                  {/* Status badges */}
-                  <div className="mt-1 flex items-center gap-1.5">
-                    {item.status === "idle" && (
-                      <span className="text-[9px] text-neutral-500 flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-neutral-500"></span>
-                        {t("img_status_pending")}
-                      </span>
-                    )}
-                    {item.status === "processing" && (
-                      <span className="text-[9px] text-blue-400 flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
-                        {t("img_status_processing")}
-                      </span>
-                    )}
-                    {item.status === "ready" && (
-                      <span className="text-[9px] text-emerald-400 flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                        {t("img_status_ready")}
-                      </span>
-                    )}
-                    {item.status === "error" && (
-                      <span className="text-[9px] text-red-400 flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-                        {t("img_status_error")}
-                      </span>
-                    )}
-                  </div>
-                </div>
+                  {/* Status dot in bottom right */}
+                  <span className={[
+                    "absolute bottom-1 right-1 w-2.5 h-2.5 rounded-full border border-black/50",
+                    item.status === "idle" && "bg-neutral-500",
+                    item.status === "processing" && "bg-blue-400 animate-pulse",
+                    item.status === "ready" && "bg-emerald-400",
+                    item.status === "error" && "bg-red-500",
+                  ].join(" ")}></span>
 
-                {/* Remove Button */}
-                <button
-                  className="p-1 rounded-md text-neutral-500 hover:text-white hover:bg-neutral-850 transition cursor-pointer"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeItem(item.id);
-                  }}
-                  type="button"
+                  {/* Tiny delete button */}
+                  <button
+                    className="absolute top-0.5 right-0.5 z-10 p-0.5 rounded-full bg-black/60 text-neutral-400 hover:text-white transition cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeItem(item.id);
+                    }}
+                    type="button"
+                  >
+                    <CloseIcon />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── DESKTOP VERTICAL VIEW (hidden lg:flex) ── */}
+        <div className="hidden lg:flex flex-col h-full overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-white/5 pb-3">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-white text-sm">{t("img_queue_title")}</span>
+              <span className="rounded-full bg-neutral-800 border border-white/5 px-2 py-0.5 text-[10px] font-semibold text-neutral-300">
+                {items.length}
+              </span>
+            </div>
+          </div>
+
+          {/* Action Row */}
+          <div className="grid grid-cols-2 gap-2 mt-3 pb-3 border-b border-white/5 shrink-0">
+            <button
+              className="flex items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-neutral-950 px-2.5 py-1.5 text-xs font-semibold text-neutral-300 transition-all hover:bg-neutral-900 hover:text-white cursor-pointer"
+              onClick={() => inputRef.current?.click()}
+              type="button"
+            >
+              <PlusIcon />
+              {t("img_btn_add")}
+            </button>
+            <button
+              className="flex items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-neutral-950 px-2.5 py-1.5 text-xs font-semibold text-red-400/90 transition-all hover:bg-red-950/20 hover:text-red-300 cursor-pointer"
+              onClick={clearAll}
+              type="button"
+            >
+              <TrashIcon />
+              {t("img_btn_clear_all")}
+            </button>
+          </div>
+
+          {readyItems.length > 0 && (
+            <button
+              className="w-full mt-3 flex items-center justify-center gap-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20 px-3 py-2 text-xs font-bold text-cyan-300 transition-all hover:bg-cyan-500/20 cursor-pointer shrink-0"
+              disabled={isZipping}
+              onClick={() => void downloadAll()}
+              type="button"
+            >
+              📦 {isZipping ? t("img_btn_zipping") : t("img_btn_download_zip", { count: readyItems.length })}
+            </button>
+          )}
+
+          {/* Scrollable Thumbnails List */}
+          <div className="flex-1 overflow-y-auto mt-4 space-y-2.5 pr-1 scrollbar-thin">
+            {items.map((item) => {
+              const isSelected = item.id === activeEditId;
+              const cardFilter = `brightness(${item.editConfig.brightness}%) contrast(${item.editConfig.contrast}%) saturate(${item.editConfig.saturation}%) blur(${item.editConfig.blur / 4}px) ${
+                item.editConfig.filter === "grayscale" ? "grayscale(100%)" :
+                item.editConfig.filter === "sepia" ? "sepia(100%)" :
+                item.editConfig.filter === "invert" ? "invert(100%)" :
+                item.editConfig.filter === "vintage" ? "contrast(120%) saturate(80%) sepia(20%)" : ""
+              }`;
+              const cardTransform = `rotate(${item.editConfig.rotate}deg) scaleX(${item.editConfig.flipH ? -1 : 1}) scaleY(${item.editConfig.flipV ? -1 : 1})`;
+
+              return (
+                <div
+                  key={item.id}
+                  onClick={() => setActiveEditId(item.id)}
+                  className={[
+                    "group flex items-center gap-3 p-2.5 rounded-lg border transition cursor-pointer relative",
+                    isSelected
+                      ? "border-cyan-500/50 bg-cyan-500/5 shadow-md shadow-cyan-500/5"
+                      : "border-white/5 bg-neutral-950/20 hover:border-white/10 hover:bg-neutral-950/40",
+                  ].join(" ")}
                 >
-                  <CloseIcon />
-                </button>
-              </div>
-            );
-          })}
+                  {/* Small Image Thumbnail Container */}
+                  <div className="relative w-12 h-12 rounded-lg bg-neutral-900 border border-white/5 overflow-hidden flex items-center justify-center shrink-0">
+                    <div className="w-full h-full flex items-center justify-center overflow-hidden" style={{ transform: cardTransform }}>
+                      {item.originalPreviewUrl ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img
+                          src={item.originalPreviewUrl}
+                          alt={item.displayName}
+                          style={{ filter: cardFilter }}
+                          className="object-cover w-full h-full"
+                        />
+                      ) : (
+                        <span className="text-[8px] text-neutral-600">No Preview</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Info text */}
+                  <div className="flex-1 min-w-0 text-left">
+                    <p className="truncate text-xs font-semibold text-neutral-200" title={item.displayName}>
+                      {item.displayName}
+                    </p>
+                    <p className="text-[10px] text-neutral-400 mt-0.5">
+                      {formatBytes(item.originalSize)}
+                    </p>
+                    {/* Status badges */}
+                    <div className="mt-1 flex items-center gap-1.5">
+                      {item.status === "idle" && (
+                        <span className="text-[9px] text-neutral-500 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-neutral-500"></span>
+                          {t("img_status_pending")}
+                        </span>
+                      )}
+                      {item.status === "processing" && (
+                        <span className="text-[9px] text-blue-400 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                          {t("img_status_processing")}
+                        </span>
+                      )}
+                      {item.status === "ready" && (
+                        <span className="text-[9px] text-emerald-400 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                          {t("img_status_ready")}
+                        </span>
+                      )}
+                      {item.status === "error" && (
+                        <span className="text-[9px] text-red-400 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                          {t("img_status_error")}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Remove Button */}
+                  <button
+                    className="p-1 rounded-md text-neutral-500 hover:text-white hover:bg-neutral-850 transition cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeItem(item.id);
+                    }}
+                    type="button"
+                  >
+                    <CloseIcon />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     );
@@ -559,14 +657,14 @@ export default function ImageProcessor() {
   const renderPreview = () => {
     if (!activeEditId || !activeEditItem) {
       return (
-        <div className="flex flex-col flex-1 border border-white/10 rounded-xl bg-neutral-900/20 p-4 h-[350px] lg:h-[650px] items-center justify-center text-neutral-500 text-sm gap-2">
+        <div className="flex flex-col flex-1 border border-white/10 rounded-xl bg-neutral-900/20 p-4 h-[350px] lg:h-[780px] items-center justify-center text-neutral-500 text-sm gap-2 order-1 lg:order-none">
           <span>Vui lòng chọn hoặc thêm ảnh để xử lý</span>
         </div>
       );
     }
 
     return (
-      <div className="flex flex-col flex-1 border border-white/10 rounded-xl bg-neutral-900/20 p-4 h-[350px] lg:h-[650px] overflow-hidden">
+      <div className="flex flex-col flex-1 border border-white/10 rounded-xl bg-neutral-900/20 p-4 h-[420px] sm:h-[480px] lg:h-[780px] overflow-hidden order-1 lg:order-none">
         {/* Image Preview Window */}
         <div className="flex-1 relative flex items-center justify-center rounded-lg overflow-hidden border border-white/5 bg-[linear-gradient(45deg,#161616_25%,transparent_25%),linear-gradient(-45deg,#161616_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#161616_75%),linear-gradient(-45deg,transparent_75%,#161616_75%)] bg-[size:16px_16px] bg-[position:0_0,0_8px,8px_-8px,-8px_0] p-4">
           <div className="relative max-h-full max-w-full flex items-center justify-center overflow-hidden">
@@ -576,7 +674,7 @@ export default function ImageProcessor() {
                 src={activeEditItem.originalPreviewUrl}
                 alt="Active Preview"
                 style={{ filter: previewFilterStyle }}
-                className="max-h-[220px] lg:max-h-[420px] max-w-full object-contain rounded shadow-2xl transition-all duration-200"
+                className="max-h-[260px] sm:max-h-[320px] lg:max-h-[520px] max-w-full object-contain rounded shadow-2xl transition-all duration-200"
               />
               {/* Watermark Overlay */}
               {activeEditConfig.watermarkEnabled && activeEditConfig.watermarkText && (
@@ -681,7 +779,7 @@ export default function ImageProcessor() {
 
   const renderControls = () => {
     return (
-      <div className="flex flex-col border border-white/10 rounded-xl bg-neutral-900/60 h-auto lg:h-[650px] overflow-hidden">
+      <div className="flex flex-col border border-white/10 rounded-xl bg-neutral-900/60 h-auto lg:h-[780px] overflow-hidden order-3 lg:order-none">
         {/* Tabs Navigation */}
         <div className="flex border-b border-white/5 bg-neutral-950/20 p-2 gap-1 overflow-x-auto shrink-0 scrollbar-none">
           {(
@@ -1069,7 +1167,7 @@ export default function ImageProcessor() {
       />
 
       {items.length === 0 ? renderDropzone() : (
-        <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr_340px] gap-6 items-stretch min-h-[600px]">
+        <div className="grid grid-cols-1 lg:grid-cols-[250px_1fr_340px] gap-6 items-stretch lg:min-h-[780px]">
           {renderQueue()}
           {renderPreview()}
           {renderControls()}
