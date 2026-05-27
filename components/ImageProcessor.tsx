@@ -87,8 +87,7 @@ export default function ImageProcessor() {
 
   // Active Editing States
   const [activeEditId, setActiveEditId] = useState<string | null>(null);
-  const [activeEditConfig, setActiveEditConfig] = useState<ImageEditConfig>({ ...DEFAULT_EDIT_CONFIG });
-  const [editorTab, setEditorTab] = useState<"transform" | "adjust" | "watermark">("transform");
+  const [editorTab, setEditorTab] = useState<"transform" | "adjust" | "watermark" | "export">("transform");
 
   useEffect(() => {
     const objectUrls = objectUrlsRef.current;
@@ -107,6 +106,10 @@ export default function ImageProcessor() {
     () => items.find((item) => item.id === activeEditId),
     [items, activeEditId]
   );
+
+  const activeEditConfig = useMemo(() => {
+    return activeEditItem?.editConfig ?? DEFAULT_EDIT_CONFIG;
+  }, [activeEditItem]);
 
   const updateImageItem = useCallback((id: string, patch: Partial<ProcessedImage>) => {
     setItems((currentItems) =>
@@ -147,31 +150,57 @@ export default function ImageProcessor() {
       );
 
       setItems((currentItems) => [...currentItems, ...newItems]);
+      setActiveEditId((currentId) => {
+        if (!currentId && newItems.length > 0) {
+          return newItems[0].id;
+        }
+        return currentId;
+      });
     },
     []
   );
 
-  // Apply edits to state and close editor
-  const handleSaveEdits = () => {
+  const updateActiveConfig = useCallback((patch: Partial<ImageEditConfig>) => {
     if (activeEditId) {
-      updateImageItem(activeEditId, {
-        editConfig: { ...activeEditConfig },
-        status: "idle", // Reset status to idle so they are re-processed
-      });
-      setActiveEditId(null);
+      const currentItem = items.find(item => item.id === activeEditId);
+      if (currentItem) {
+        if (currentItem.downloadUrl) {
+          URL.revokeObjectURL(currentItem.downloadUrl);
+          objectUrlsRef.current.delete(currentItem.downloadUrl);
+        }
+
+        updateImageItem(activeEditId, {
+          editConfig: { ...currentItem.editConfig, ...patch },
+          status: "idle",
+          progress: 0,
+          outputSize: undefined,
+          outputFile: undefined,
+          downloadUrl: undefined,
+        });
+      }
     }
-  };
+  }, [activeEditId, items, updateImageItem]);
 
   // Apply current edits to ALL items in queue
   const handleApplyEditsToAll = () => {
+    if (!activeEditId) return;
     setItems((currentItems) =>
-      currentItems.map((item) => ({
-        ...item,
-        editConfig: { ...activeEditConfig },
-        status: "idle", // Reset to re-process with new settings
-      }))
+      currentItems.map((item) => {
+        if (item.downloadUrl) {
+          URL.revokeObjectURL(item.downloadUrl);
+          objectUrlsRef.current.delete(item.downloadUrl);
+        }
+        return {
+          ...item,
+          editConfig: { ...activeEditConfig },
+          status: "idle",
+          progress: 0,
+          outputSize: undefined,
+          outputFile: undefined,
+          downloadUrl: undefined,
+        };
+      })
     );
-    setActiveEditId(null);
   };
 
   const processAll = useCallback(async () => {
@@ -244,7 +273,15 @@ export default function ImageProcessor() {
       }
       return currentItems.filter((item) => item.id !== id);
     });
-  }, []);
+
+    setActiveEditId((currentId) => {
+      if (currentId === id) {
+        const nextItems = items.filter((item) => item.id !== id);
+        return nextItems.length > 0 ? nextItems[0].id : null;
+      }
+      return currentId;
+    });
+  }, [items]);
 
   const clearAll = useCallback(() => {
     items.forEach((item) => {
@@ -253,6 +290,7 @@ export default function ImageProcessor() {
     });
     objectUrlsRef.current.clear();
     setItems([]);
+    setActiveEditId(null);
   }, [items]);
 
   const clearMetadata = useCallback(async (item: ProcessedImage) => {
@@ -313,12 +351,7 @@ export default function ImageProcessor() {
     }
   }, [readyItems]);
 
-  // Handle open editor overlay
-  const openEditor = (item: ProcessedImage) => {
-    setActiveEditId(item.id);
-    setActiveEditConfig({ ...item.editConfig });
-    setEditorTab("transform");
-  };
+
 
   // Preview computed styles
   const previewFilterStyle = useMemo(() => {
@@ -339,684 +372,588 @@ export default function ImageProcessor() {
     return `rotate(${activeEditConfig.rotate}deg) scaleX(${activeEditConfig.flipH ? -1 : 1}) scaleY(${activeEditConfig.flipV ? -1 : 1})`;
   }, [activeEditConfig]);
 
-  return (
-    <section className="rounded-xl border border-white/10 bg-neutral-900/40 p-4 sm:p-6 backdrop-blur-md shadow-2xl relative">
-      <input
-        accept="image/jpeg,image/png,image/webp"
-        className="sr-only"
-        multiple
-        onChange={(event) => {
-          if (event.target.files) void processFiles(event.target.files);
-          event.currentTarget.value = "";
+  const renderDropzone = () => {
+    return (
+      <div
+        className={[
+          "flex min-h-[350px] flex-col items-center justify-center rounded-xl border border-dashed p-6 text-center transition-all duration-300",
+          isDragging
+            ? "border-cyan-400 bg-cyan-500/5 shadow-[0_0_20px_rgba(34,211,238,0.15)]"
+            : "border-white/15 bg-neutral-950/60 hover:border-white/30 hover:bg-neutral-950/90",
+        ].join(" ")}
+        onDragEnter={(event) => {
+          event.preventDefault();
+          setIsDragging(true);
         }}
-        ref={inputRef}
-        type="file"
-      />
+        onDragLeave={(event) => {
+          event.preventDefault();
+          setIsDragging(false);
+        }}
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={(event) => {
+          event.preventDefault();
+          setIsDragging(false);
+          void processFiles(event.dataTransfer.files);
+        }}
+      >
+        <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-cyan-500/10 text-cyan-400 shadow-inner">
+          <UploadIcon />
+        </div>
+        <h3 className="text-xl font-semibold text-white">
+          {t("img_drop_title")}
+        </h3>
+        <p className="mt-3 max-w-md text-sm leading-relaxed text-neutral-400">
+          {t("img_drop_desc")}
+        </p>
+        <button
+          className="mt-6 inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-400 to-blue-500 px-5 py-2.5 text-sm font-semibold text-neutral-950 shadow-md transition-all duration-200 hover:from-cyan-300 hover:to-blue-400 hover:scale-[1.02] cursor-pointer"
+          onClick={() => inputRef.current?.click()}
+          type="button"
+        >
+          {t("img_drop_btn")}
+        </button>
+      </div>
+    );
+  };
 
-      {/* ── IMAGE EDITOR OVERLAY ── */}
-      {activeEditId && activeEditItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-fadeIn">
-          <div className="bg-neutral-900 border border-white/10 w-full max-w-5xl h-[85vh] rounded-2xl shadow-2xl overflow-hidden grid grid-cols-1 lg:grid-cols-[1fr_340px]">
-            {/* Left Preview Screen */}
-            <div className="relative flex flex-col items-center justify-center p-6 bg-neutral-950/40 border-r border-white/5 h-full overflow-hidden">
-              <div className="relative max-h-full max-w-full flex items-center justify-center overflow-hidden">
-                <div className="relative select-none" style={{ transform: previewTransformStyle }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={activeEditItem.originalPreviewUrl}
-                    alt="Original Preview"
-                    style={{ filter: previewFilterStyle }}
-                    className="max-h-[50vh] max-w-full object-contain rounded-lg shadow-2xl transition-all duration-200"
-                  />
-                  {/* Watermark Live Preview Overlay */}
-                  {activeEditConfig.watermarkEnabled && activeEditConfig.watermarkText && (
-                    <div
-                      style={{
-                        color: activeEditConfig.watermarkColor,
-                        opacity: activeEditConfig.watermarkOpacity,
-                        fontSize: `${activeEditConfig.watermarkSize / 1.5}%`,
-                        textAlign: activeEditConfig.watermarkPosition.includes("left") ? "left" : activeEditConfig.watermarkPosition.includes("right") ? "right" : "center",
-                      }}
-                      className={[
-                        "absolute pointer-events-none font-bold uppercase select-none p-3 break-all max-w-[80%]",
-                        activeEditConfig.watermarkPosition === "top-left" && "top-2 left-2",
-                        activeEditConfig.watermarkPosition === "top-right" && "top-2 right-2",
-                        activeEditConfig.watermarkPosition === "center" && "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2",
-                        activeEditConfig.watermarkPosition === "bottom-left" && "bottom-2 left-2",
-                        activeEditConfig.watermarkPosition === "bottom-right" && "bottom-2 right-2",
-                      ].join(" ")}
-                    >
-                      {activeEditConfig.watermarkText}
-                    </div>
-                  )}
+  const renderQueue = () => {
+    return (
+      <div className="flex flex-col border border-white/10 rounded-xl bg-neutral-900/40 p-4 h-[400px] lg:h-[650px] overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-white/5 pb-3">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-white text-sm">{t("img_queue_title")}</span>
+            <span className="rounded-full bg-neutral-800 border border-white/5 px-2 py-0.5 text-[10px] font-semibold text-neutral-300">
+              {items.length}
+            </span>
+          </div>
+        </div>
+
+        {/* Action Row */}
+        <div className="grid grid-cols-2 gap-2 mt-3 pb-3 border-b border-white/5 shrink-0">
+          <button
+            className="flex items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-neutral-950 px-2.5 py-1.5 text-xs font-semibold text-neutral-300 transition-all hover:bg-neutral-900 hover:text-white cursor-pointer"
+            onClick={() => inputRef.current?.click()}
+            type="button"
+          >
+            <PlusIcon />
+            {t("img_btn_add")}
+          </button>
+          <button
+            className="flex items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-neutral-950 px-2.5 py-1.5 text-xs font-semibold text-red-400/90 transition-all hover:bg-red-950/20 hover:text-red-300 cursor-pointer"
+            onClick={clearAll}
+            type="button"
+          >
+            <TrashIcon />
+            {t("img_btn_clear_all")}
+          </button>
+        </div>
+
+        {readyItems.length > 0 && (
+          <button
+            className="w-full mt-3 flex items-center justify-center gap-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20 px-3 py-2 text-xs font-bold text-cyan-300 transition-all hover:bg-cyan-500/20 cursor-pointer shrink-0"
+            disabled={isZipping}
+            onClick={() => void downloadAll()}
+            type="button"
+          >
+            📦 {isZipping ? t("img_btn_zipping") : t("img_btn_download_zip", { count: readyItems.length })}
+          </button>
+        )}
+
+        {/* Scrollable Thumbnails List */}
+        <div className="flex-1 overflow-y-auto mt-4 space-y-2.5 pr-1 scrollbar-thin">
+          {items.map((item) => {
+            const isSelected = item.id === activeEditId;
+            const cardFilter = `brightness(${item.editConfig.brightness}%) contrast(${item.editConfig.contrast}%) saturate(${item.editConfig.saturation}%) blur(${item.editConfig.blur / 4}px) ${
+              item.editConfig.filter === "grayscale" ? "grayscale(100%)" :
+              item.editConfig.filter === "sepia" ? "sepia(100%)" :
+              item.editConfig.filter === "invert" ? "invert(100%)" :
+              item.editConfig.filter === "vintage" ? "contrast(120%) saturate(80%) sepia(20%)" : ""
+            }`;
+            const cardTransform = `rotate(${item.editConfig.rotate}deg) scaleX(${item.editConfig.flipH ? -1 : 1}) scaleY(${item.editConfig.flipV ? -1 : 1})`;
+
+            return (
+              <div
+                key={item.id}
+                onClick={() => setActiveEditId(item.id)}
+                className={[
+                  "group flex items-center gap-3 p-2.5 rounded-lg border transition cursor-pointer relative",
+                  isSelected
+                    ? "border-cyan-500/50 bg-cyan-500/5 shadow-md shadow-cyan-500/5"
+                    : "border-white/5 bg-neutral-950/20 hover:border-white/10 hover:bg-neutral-950/40",
+                ].join(" ")}
+              >
+                {/* Small Image Thumbnail Container */}
+                <div className="relative w-12 h-12 rounded-lg bg-neutral-900 border border-white/5 overflow-hidden flex items-center justify-center shrink-0">
+                  <div className="w-full h-full flex items-center justify-center overflow-hidden" style={{ transform: cardTransform }}>
+                    {item.originalPreviewUrl ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={item.originalPreviewUrl}
+                        alt={item.displayName}
+                        style={{ filter: cardFilter }}
+                        className="object-cover w-full h-full"
+                      />
+                    ) : (
+                      <span className="text-[8px] text-neutral-600">No Preview</span>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <span className="absolute bottom-4 left-6 text-xs text-neutral-500 font-mono">
-                {activeEditItem.displayName} ({activeEditItem.originalFile.type})
-              </span>
-            </div>
 
-            {/* Right Controls Panel */}
-            <div className="flex flex-col h-full bg-neutral-900 overflow-hidden">
-              {/* Header */}
-              <div className="p-4 border-b border-white/5 flex items-center justify-between">
-                <h3 className="text-md font-bold text-white tracking-wide">{t("img_edit_title")}</h3>
+                {/* Info text */}
+                <div className="flex-1 min-w-0 text-left">
+                  <p className="truncate text-xs font-semibold text-neutral-200" title={item.displayName}>
+                    {item.displayName}
+                  </p>
+                  <p className="text-[10px] text-neutral-400 mt-0.5">
+                    {formatBytes(item.originalSize)}
+                  </p>
+                  {/* Status badges */}
+                  <div className="mt-1 flex items-center gap-1.5">
+                    {item.status === "idle" && (
+                      <span className="text-[9px] text-neutral-500 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-neutral-500"></span>
+                        {t("img_status_pending")}
+                      </span>
+                    )}
+                    {item.status === "processing" && (
+                      <span className="text-[9px] text-blue-400 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                        {t("img_status_processing")}
+                      </span>
+                    )}
+                    {item.status === "ready" && (
+                      <span className="text-[9px] text-emerald-400 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        {t("img_status_ready")}
+                      </span>
+                    )}
+                    {item.status === "error" && (
+                      <span className="text-[9px] text-red-400 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                        {t("img_status_error")}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Remove Button */}
                 <button
-                  onClick={() => setActiveEditId(null)}
-                  className="p-1 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 transition"
+                  className="p-1 rounded-md text-neutral-500 hover:text-white hover:bg-neutral-850 transition cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeItem(item.id);
+                  }}
                   type="button"
                 >
                   <CloseIcon />
                 </button>
               </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
 
-              {/* Tabs Navigation */}
-              <div className="flex border-b border-white/5 bg-neutral-950/20 p-2 gap-1">
-                {(
-                  [
-                    { id: "transform", labelKey: "img_edit_tab_transform" },
-                    { id: "adjust", labelKey: "img_edit_tab_adjust" },
-                    { id: "watermark", labelKey: "img_edit_tab_watermark" },
-                  ] as const
-                ).map((tab) => (
+  const renderPreview = () => {
+    if (!activeEditId || !activeEditItem) {
+      return (
+        <div className="flex flex-col flex-1 border border-white/10 rounded-xl bg-neutral-900/20 p-4 h-[350px] lg:h-[650px] items-center justify-center text-neutral-500 text-sm gap-2">
+          <span>Vui lòng chọn hoặc thêm ảnh để xử lý</span>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex flex-col flex-1 border border-white/10 rounded-xl bg-neutral-900/20 p-4 h-[350px] lg:h-[650px] overflow-hidden">
+        {/* Image Preview Window */}
+        <div className="flex-1 relative flex items-center justify-center rounded-lg overflow-hidden border border-white/5 bg-[linear-gradient(45deg,#161616_25%,transparent_25%),linear-gradient(-45deg,#161616_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#161616_75%),linear-gradient(-45deg,transparent_75%,#161616_75%)] bg-[size:16px_16px] bg-[position:0_0,0_8px,8px_-8px,-8px_0] p-4">
+          <div className="relative max-h-full max-w-full flex items-center justify-center overflow-hidden">
+            <div className="relative select-none" style={{ transform: previewTransformStyle }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={activeEditItem.originalPreviewUrl}
+                alt="Active Preview"
+                style={{ filter: previewFilterStyle }}
+                className="max-h-[220px] lg:max-h-[420px] max-w-full object-contain rounded shadow-2xl transition-all duration-200"
+              />
+              {/* Watermark Overlay */}
+              {activeEditConfig.watermarkEnabled && activeEditConfig.watermarkText && (
+                <div
+                  style={{
+                    color: activeEditConfig.watermarkColor,
+                    opacity: activeEditConfig.watermarkOpacity,
+                    fontSize: `${activeEditConfig.watermarkSize / 1.5}%`,
+                    textAlign: activeEditConfig.watermarkPosition.includes("left") ? "left" : activeEditConfig.watermarkPosition.includes("right") ? "right" : "center",
+                  }}
+                  className={[
+                    "absolute pointer-events-none font-bold uppercase select-none p-3 break-all max-w-[80%]",
+                    activeEditConfig.watermarkPosition === "top-left" && "top-2 left-2",
+                    activeEditConfig.watermarkPosition === "top-right" && "top-2 right-2",
+                    activeEditConfig.watermarkPosition === "center" && "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2",
+                    activeEditConfig.watermarkPosition === "bottom-left" && "bottom-2 left-2",
+                    activeEditConfig.watermarkPosition === "bottom-right" && "bottom-2 right-2",
+                  ].join(" ")}
+                >
+                  {activeEditConfig.watermarkText}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Info & Stats / Metadata actions */}
+        <div className="mt-4 p-3 bg-neutral-950/40 rounded-lg border border-white/5 space-y-2 text-xs text-left">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-2">
+            <span className="font-mono text-neutral-400 truncate max-w-[180px] lg:max-w-[300px]" title={activeEditItem.displayName}>
+              {activeEditItem.displayName}
+            </span>
+            <div className="flex items-center gap-2 text-neutral-300">
+              <span>{formatBytes(activeEditItem.originalSize)}</span>
+              {activeEditItem.outputSize && (
+                <>
+                  <span className="text-neutral-500">→</span>
+                  <span className="font-bold text-white">{formatBytes(activeEditItem.outputSize)}</span>
+                  {(() => {
+                    const diff = activeEditItem.originalSize - activeEditItem.outputSize;
+                    const percent = Math.round((diff / activeEditItem.originalSize) * 100);
+                    if (percent > 0) {
+                      return <span className="text-emerald-400 font-semibold">(-{percent}%)</span>;
+                    } else if (percent < 0) {
+                      return <span className="text-amber-400 font-semibold">(+{Math.abs(percent)}%)</span>;
+                    }
+                    return null;
+                  })()}
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Exif and Clean Actions Row */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1">
+            <div className="flex-1 min-w-0">
+              {activeEditItem.exif && hasExif(activeEditItem.exif) ? (
+                <div className="text-[10px] text-neutral-400 flex flex-wrap gap-x-2.5 gap-y-0.5">
+                  <span>📷 {activeEditItem.exif.camera}</span>
+                  {activeEditItem.exif.aperture !== "none" && <span>⭕ {activeEditItem.exif.aperture}</span>}
+                  {activeEditItem.exif.shutterSpeed !== "none" && <span>⚡ {activeEditItem.exif.shutterSpeed}</span>}
+                  {activeEditItem.exif.iso !== "none" && <span>🎞️ {activeEditItem.exif.iso}</span>}
+                </div>
+              ) : (
+                <span className="text-[10px] text-neutral-500">
+                  {activeEditItem.metadataCleared ? t("img_exif_cleared_msg") : "Không có Metadata EXIF."}
+                </span>
+              )}
+            </div>
+
+            <div className="flex gap-2 shrink-0">
+              <button
+                className="px-2.5 py-1 rounded bg-neutral-900 border border-white/10 hover:border-white/20 text-[10px] text-neutral-300 font-semibold transition disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                disabled={activeEditItem.status === "processing" || activeEditItem.metadataCleared || !(activeEditItem.exif && hasExif(activeEditItem.exif))}
+                onClick={() => void clearMetadata(activeEditItem)}
+                type="button"
+              >
+                {t("img_btn_clear_exif")}
+              </button>
+              {activeEditItem.downloadUrl ? (
+                <a
+                  className="px-3 py-1 rounded bg-cyan-400 text-neutral-950 font-extrabold text-[10px] hover:bg-cyan-300 transition shadow-sm cursor-pointer"
+                  download={activeEditItem.outputFile?.name ?? activeEditItem.displayName}
+                  href={activeEditItem.downloadUrl}
+                >
+                  {t("img_btn_download")}
+                </a>
+              ) : (
+                <button
+                  className="px-3 py-1 rounded bg-neutral-850 text-neutral-500 text-[10px] font-semibold cursor-not-allowed"
+                  disabled
+                >
+                  {t("img_btn_download")}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderControls = () => {
+    return (
+      <div className="flex flex-col border border-white/10 rounded-xl bg-neutral-900/60 h-auto lg:h-[650px] overflow-hidden">
+        {/* Tabs Navigation */}
+        <div className="flex border-b border-white/5 bg-neutral-950/20 p-2 gap-1 overflow-x-auto shrink-0 scrollbar-none">
+          {(
+            [
+              { id: "transform", labelKey: "img_edit_tab_transform" },
+              { id: "adjust", labelKey: "img_edit_tab_adjust" },
+              { id: "watermark", labelKey: "img_edit_tab_watermark" },
+              { id: "export", labelKey: "img_edit_tab_export" },
+            ] as const
+          ).map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setEditorTab(tab.id)}
+              className={[
+                "flex-1 py-1.5 px-2 text-[10.5px] font-bold rounded-md transition cursor-pointer text-center whitespace-nowrap",
+                editorTab === tab.id
+                  ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20"
+                  : "text-neutral-400 hover:text-white hover:bg-neutral-800/30",
+              ].join(" ")}
+              type="button"
+            >
+              {t(tab.labelKey)}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab Contents Area */}
+        <div className="flex-1 p-4 overflow-y-auto space-y-4 text-xs text-left scrollbar-thin">
+          {/* ── TRANSFORM TAB ── */}
+          {editorTab === "transform" && (
+            <div className="space-y-4">
+              {/* Rotations */}
+              <div className="space-y-2">
+                <span className="text-neutral-400 block font-semibold">Xoay ảnh</span>
+                <div className="grid grid-cols-2 gap-2">
                   <button
-                    key={tab.id}
-                    onClick={() => setEditorTab(tab.id)}
+                    onClick={() => updateActiveConfig({ rotate: (activeEditConfig.rotate + 270) % 360 })}
+                    className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg border border-white/10 hover:border-white/20 bg-neutral-950 text-white font-medium cursor-pointer"
+                    type="button"
+                  >
+                    🔄 {t("img_edit_rotate_left")}
+                  </button>
+                  <button
+                    onClick={() => updateActiveConfig({ rotate: (activeEditConfig.rotate + 90) % 360 })}
+                    className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg border border-white/10 hover:border-white/20 bg-neutral-950 text-white font-medium cursor-pointer"
+                    type="button"
+                  >
+                    🔄 {t("img_edit_rotate_right")}
+                  </button>
+                </div>
+              </div>
+
+              {/* Flips */}
+              <div className="space-y-2">
+                <span className="text-neutral-400 block font-semibold">Lật ảnh</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => updateActiveConfig({ flipH: !activeEditConfig.flipH })}
                     className={[
-                      "flex-1 py-1.5 text-xs font-semibold rounded-md transition cursor-pointer text-center",
-                      editorTab === tab.id
-                        ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20"
-                        : "text-neutral-400 hover:text-white hover:bg-neutral-800/30",
+                      "flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg border font-medium cursor-pointer transition",
+                      activeEditConfig.flipH
+                        ? "bg-cyan-500/10 border-cyan-500/30 text-cyan-400"
+                        : "border-white/10 hover:border-white/20 bg-neutral-950 text-white",
                     ].join(" ")}
                     type="button"
                   >
-                    {t(tab.labelKey)}
+                    ↔️ {t("img_edit_flip_h")}
                   </button>
-                ))}
-              </div>
-
-              {/* Tab Contents Area */}
-              <div className="flex-1 p-4 overflow-y-auto space-y-4 text-xs">
-                {/* ── TRANSFORM TAB ── */}
-                {editorTab === "transform" && (
-                  <div className="space-y-4">
-                    {/* Rotations */}
-                    <div className="space-y-2">
-                      <span className="text-neutral-400 block font-semibold">Xoay ảnh</span>
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          onClick={() => setActiveEditConfig((prev) => ({ ...prev, rotate: (prev.rotate + 270) % 360 }))}
-                          className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg border border-white/10 hover:border-white/20 bg-neutral-950 text-white font-medium cursor-pointer"
-                          type="button"
-                        >
-                          🔄 {t("img_edit_rotate_left")}
-                        </button>
-                        <button
-                          onClick={() => setActiveEditConfig((prev) => ({ ...prev, rotate: (prev.rotate + 90) % 360 }))}
-                          className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg border border-white/10 hover:border-white/20 bg-neutral-950 text-white font-medium cursor-pointer"
-                          type="button"
-                        >
-                          🔄 {t("img_edit_rotate_right")}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Flips */}
-                    <div className="space-y-2">
-                      <span className="text-neutral-400 block font-semibold">Lật ảnh</span>
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          onClick={() => setActiveEditConfig((prev) => ({ ...prev, flipH: !prev.flipH }))}
-                          className={[
-                            "flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg border font-medium cursor-pointer transition",
-                            activeEditConfig.flipH
-                              ? "bg-cyan-500/10 border-cyan-500/30 text-cyan-400"
-                              : "border-white/10 hover:border-white/20 bg-neutral-950 text-white",
-                          ].join(" ")}
-                          type="button"
-                        >
-                          ↔️ {t("img_edit_flip_h")}
-                        </button>
-                        <button
-                          onClick={() => setActiveEditConfig((prev) => ({ ...prev, flipV: !prev.flipV }))}
-                          className={[
-                            "flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg border font-medium cursor-pointer transition",
-                            activeEditConfig.flipV
-                              ? "bg-cyan-500/10 border-cyan-500/30 text-cyan-400"
-                              : "border-white/10 hover:border-white/20 bg-neutral-950 text-white",
-                          ].join(" ")}
-                          type="button"
-                        >
-                          ↕️ {t("img_edit_flip_v")}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* ── ADJUSTMENTS TAB ── */}
-                {editorTab === "adjust" && (
-                  <div className="space-y-4">
-                    {/* Brightness */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between">
-                        <span className="text-neutral-400">{t("img_edit_brightness")}</span>
-                        <span className="font-bold text-cyan-300">{activeEditConfig.brightness}%</span>
-                      </div>
-                      <input
-                        type="range"
-                        min="50"
-                        max="150"
-                        value={activeEditConfig.brightness}
-                        onChange={(e) => setActiveEditConfig((prev) => ({ ...prev, brightness: Number(e.target.value) }))}
-                        className="w-full h-1 bg-neutral-850 rounded appearance-none cursor-pointer accent-cyan-300"
-                      />
-                    </div>
-
-                    {/* Contrast */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between">
-                        <span className="text-neutral-400">{t("img_edit_contrast")}</span>
-                        <span className="font-bold text-cyan-300">{activeEditConfig.contrast}%</span>
-                      </div>
-                      <input
-                        type="range"
-                        min="50"
-                        max="150"
-                        value={activeEditConfig.contrast}
-                        onChange={(e) => setActiveEditConfig((prev) => ({ ...prev, contrast: Number(e.target.value) }))}
-                        className="w-full h-1 bg-neutral-850 rounded appearance-none cursor-pointer accent-cyan-300"
-                      />
-                    </div>
-
-                    {/* Saturation */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between">
-                        <span className="text-neutral-400">{t("img_edit_saturation")}</span>
-                        <span className="font-bold text-cyan-300">{activeEditConfig.saturation}%</span>
-                      </div>
-                      <input
-                        type="range"
-                        min="0"
-                        max="200"
-                        value={activeEditConfig.saturation}
-                        onChange={(e) => setActiveEditConfig((prev) => ({ ...prev, saturation: Number(e.target.value) }))}
-                        className="w-full h-1 bg-neutral-850 rounded appearance-none cursor-pointer accent-cyan-300"
-                      />
-                    </div>
-
-                    {/* Blur */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between">
-                        <span className="text-neutral-400">{t("img_edit_blur")}</span>
-                        <span className="font-bold text-cyan-300">{activeEditConfig.blur}px</span>
-                      </div>
-                      <input
-                        type="range"
-                        min="0"
-                        max="15"
-                        value={activeEditConfig.blur}
-                        onChange={(e) => setActiveEditConfig((prev) => ({ ...prev, blur: Number(e.target.value) }))}
-                        className="w-full h-1 bg-neutral-850 rounded appearance-none cursor-pointer accent-cyan-300"
-                      />
-                    </div>
-
-                    {/* Preset Filters */}
-                    <div className="space-y-2 pt-2 border-t border-white/5">
-                      <label className="text-neutral-400 block font-semibold">{t("img_edit_filter")}</label>
-                      <div className="grid grid-cols-2 gap-1.5">
-                        {(
-                          [
-                            { id: "none", label: "Original" },
-                            { id: "grayscale", label: "Grayscale" },
-                            { id: "sepia", label: "Sepia" },
-                            { id: "invert", label: "Invert" },
-                            { id: "vintage", label: "Vintage" },
-                          ] as const
-                        ).map((filterOpt) => (
-                          <button
-                            key={filterOpt.id}
-                            onClick={() => setActiveEditConfig((prev) => ({ ...prev, filter: filterOpt.id }))}
-                            className={[
-                              "py-1.5 px-2.5 rounded text-left border cursor-pointer font-medium transition truncate",
-                              activeEditConfig.filter === filterOpt.id
-                                ? "bg-cyan-500/10 border-cyan-500/40 text-cyan-400"
-                                : "bg-neutral-950 border-white/5 text-neutral-400 hover:text-white",
-                            ].join(" ")}
-                            type="button"
-                          >
-                            {filterOpt.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* ── WATERMARK TAB ── */}
-                {editorTab === "watermark" && (
-                  <div className="space-y-4">
-                    <label className="relative flex items-center justify-between cursor-pointer py-1">
-                      <span className="font-semibold text-neutral-300">Bật đóng dấu ảnh</span>
-                      <input
-                        type="checkbox"
-                        checked={activeEditConfig.watermarkEnabled}
-                        onChange={(e) => setActiveEditConfig((prev) => ({ ...prev, watermarkEnabled: e.target.checked }))}
-                        className="sr-only peer"
-                      />
-                      <div className="w-9 h-5 rounded-full bg-neutral-800 border border-white/10 peer-checked:bg-cyan-500/20 peer-checked:border-cyan-500/40 transition-all duration-300 relative shrink-0 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-neutral-400 peer-checked:after:bg-cyan-300 after:rounded-full after:h-3.5 after:w-3.5 after:transition-all after:duration-300 peer-checked:after:translate-x-4"></div>
-                    </label>
-
-                    {activeEditConfig.watermarkEnabled && (
-                      <div className="space-y-3.5 pt-2.5 border-t border-white/5 animate-slideDown">
-                        {/* Text */}
-                        <div className="space-y-1.5">
-                          <label className="text-neutral-400 block font-semibold">{t("img_edit_watermark_text")}</label>
-                          <input
-                            type="text"
-                            value={activeEditConfig.watermarkText}
-                            onChange={(e) => setActiveEditConfig((prev) => ({ ...prev, watermarkText: e.target.value }))}
-                            className="w-full px-3 py-1.5 text-neutral-200 bg-neutral-950 border border-white/10 rounded-lg focus:border-cyan-450 outline-none transition"
-                          />
-                        </div>
-
-                        {/* Font size & Opacity */}
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1.5">
-                            <span className="text-neutral-400 block">{t("img_edit_watermark_size")}</span>
-                            <input
-                              type="range"
-                              min="10"
-                              max="80"
-                              value={activeEditConfig.watermarkSize}
-                              onChange={(e) => setActiveEditConfig((prev) => ({ ...prev, watermarkSize: Number(e.target.value) }))}
-                              className="w-full h-1 bg-neutral-850 rounded appearance-none cursor-pointer accent-cyan-300"
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <span className="text-neutral-400 block">{t("img_edit_watermark_opacity")}</span>
-                            <input
-                              type="range"
-                              min="10"
-                              max="100"
-                              value={Math.round(activeEditConfig.watermarkOpacity * 100)}
-                              onChange={(e) => setActiveEditConfig((prev) => ({ ...prev, watermarkOpacity: Number(e.target.value) / 100 }))}
-                              className="w-full h-1 bg-neutral-850 rounded appearance-none cursor-pointer accent-cyan-300"
-                            />
-                          </div>
-                        </div>
-
-                        {/* Color & Position */}
-                        <div className="grid grid-cols-[60px_1fr] gap-3">
-                          <div className="space-y-1.5">
-                            <span className="text-neutral-400 block">{t("img_edit_watermark_color")}</span>
-                            <input
-                              type="color"
-                              value={activeEditConfig.watermarkColor}
-                              onChange={(e) => setActiveEditConfig((prev) => ({ ...prev, watermarkColor: e.target.value }))}
-                              className="w-full h-8 rounded border border-white/10 bg-transparent cursor-pointer"
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <span className="text-neutral-400 block">{t("img_edit_watermark_pos")}</span>
-                            <select
-                              value={activeEditConfig.watermarkPosition}
-                              onChange={(e) => setActiveEditConfig((prev) => ({ ...prev, watermarkPosition: e.target.value as ImageEditConfig["watermarkPosition"] }))}
-                              className="w-full h-8 rounded-lg border border-white/10 bg-neutral-950 px-2 text-white outline-none focus:border-cyan-300/70"
-                            >
-                              <option value="top-left">{t("img_edit_watermark_pos_tl")}</option>
-                              <option value="top-right">{t("img_edit_watermark_pos_tr")}</option>
-                              <option value="center">{t("img_edit_watermark_pos_center")}</option>
-                              <option value="bottom-left">{t("img_edit_watermark_pos_bl")}</option>
-                              <option value="bottom-right">{t("img_edit_watermark_pos_br")}</option>
-                            </select>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Action Buttons */}
-              <div className="p-4 border-t border-white/5 space-y-2 bg-neutral-950/20">
-                <button
-                  onClick={handleSaveEdits}
-                  className="w-full flex items-center justify-center py-2.5 px-4 rounded-lg bg-cyan-400 font-bold text-neutral-950 hover:bg-cyan-300 transition cursor-pointer"
-                  type="button"
-                >
-                  ✓ {t("img_edit_btn_save")}
-                </button>
-                <button
-                  onClick={handleApplyEditsToAll}
-                  className="w-full flex items-center justify-center py-2 px-4 rounded-lg border border-cyan-500/20 text-cyan-300 hover:bg-cyan-500/10 transition cursor-pointer"
-                  type="button"
-                >
-                  ✨ {t("img_edit_btn_apply_all")}
-                </button>
-                <button
-                  onClick={() => setActiveEditId(null)}
-                  className="w-full flex items-center justify-center py-2 px-4 rounded-lg border border-white/10 hover:bg-neutral-800 text-neutral-300 transition cursor-pointer"
-                  type="button"
-                >
-                  {t("img_edit_btn_cancel")}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── MAIN WORKSPACE ── */}
-      {items.length === 0 ? (
-        /* Large Dropzone */
-        <div
-          className={[
-            "flex min-h-[350px] flex-col items-center justify-center rounded-xl border border-dashed p-6 text-center transition-all duration-300",
-            isDragging
-              ? "border-cyan-400 bg-cyan-500/5 shadow-[0_0_20px_rgba(34,211,238,0.15)]"
-              : "border-white/15 bg-neutral-950/60 hover:border-white/30 hover:bg-neutral-950/90",
-          ].join(" ")}
-          onDragEnter={(event) => {
-            event.preventDefault();
-            setIsDragging(true);
-          }}
-          onDragLeave={(event) => {
-            event.preventDefault();
-            setIsDragging(false);
-          }}
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={(event) => {
-            event.preventDefault();
-            setIsDragging(false);
-            void processFiles(event.dataTransfer.files);
-          }}
-        >
-          <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-cyan-500/10 text-cyan-400 shadow-inner">
-            <UploadIcon />
-          </div>
-          <h3 className="text-xl font-semibold text-white">
-            {t("img_drop_title")}
-          </h3>
-          <p className="mt-3 max-w-md text-sm leading-relaxed text-neutral-400">
-            {t("img_drop_desc")}
-          </p>
-          <button
-            className="mt-6 inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-400 to-blue-500 px-5 py-2.5 text-sm font-semibold text-neutral-950 shadow-md transition-all duration-200 hover:from-cyan-300 hover:to-blue-400 hover:scale-[1.02] cursor-pointer"
-            onClick={() => inputRef.current?.click()}
-            type="button"
-          >
-            {t("img_drop_btn")}
-          </button>
-        </div>
-      ) : (
-        /* Workspace queue and sidebar grid */
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6 items-start">
-          {/* Left Queue Panel */}
-          <div className="space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-white/5 pb-4">
-              <div className="flex items-center gap-2.5">
-                <h3 className="text-lg font-bold text-white">{t("img_queue_title")}</h3>
-                <span className="rounded-full bg-neutral-800 border border-white/5 px-2.5 py-0.5 text-xs font-semibold text-neutral-300">
-                  {t("img_queue_count", { count: items.length })}
-                </span>
-              </div>
-              
-              <div className="flex flex-wrap gap-2">
-                <button
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-neutral-900/60 px-3 py-1.5 text-xs font-semibold text-neutral-300 transition-all hover:bg-neutral-800 hover:text-white cursor-pointer"
-                  onClick={() => inputRef.current?.click()}
-                  type="button"
-                >
-                  <PlusIcon />
-                  {t("img_btn_add")}
-                </button>
-                <button
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-neutral-900/60 px-3 py-1.5 text-xs font-semibold text-red-400/90 transition-all hover:bg-red-950/20 hover:text-red-300 cursor-pointer"
-                  onClick={clearAll}
-                  type="button"
-                >
-                  <TrashIcon />
-                  {t("img_btn_clear_all")}
-                </button>
-                {readyItems.length > 0 && (
                   <button
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-550/10 border border-cyan-500/20 px-3 py-1.5 text-xs font-semibold text-cyan-300 transition-all hover:bg-cyan-500/20 cursor-pointer"
-                    disabled={isZipping}
-                    onClick={() => void downloadAll()}
+                    onClick={() => updateActiveConfig({ flipV: !activeEditConfig.flipV })}
+                    className={[
+                      "flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg border font-medium cursor-pointer transition",
+                      activeEditConfig.flipV
+                        ? "bg-cyan-500/10 border-cyan-500/30 text-cyan-400"
+                        : "border-white/10 hover:border-white/20 bg-neutral-950 text-white",
+                    ].join(" ")}
                     type="button"
                   >
-                    {isZipping ? t("img_btn_zipping") : t("img_btn_download_zip", { count: readyItems.length })}
+                    ↕️ {t("img_edit_flip_v")}
                   </button>
-                )}
+                </div>
               </div>
             </div>
+          )}
 
-            {/* Grid display of files */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-              {items.map((item) => {
-                const isItemExifPresent = hasExif(item.exif);
-                
-                // Live preview filters inside individual card thumbnails
-                const cardFilter = `brightness(${item.editConfig.brightness}%) contrast(${item.editConfig.contrast}%) saturate(${item.editConfig.saturation}%) blur(${item.editConfig.blur / 3}px) ${
-                  item.editConfig.filter === "grayscale" ? "grayscale(100%)" :
-                  item.editConfig.filter === "sepia" ? "sepia(100%)" :
-                  item.editConfig.filter === "invert" ? "invert(100%)" :
-                  item.editConfig.filter === "vintage" ? "contrast(120%) saturate(80%) sepia(20%)" : ""
-                }`;
+          {/* ── ADJUSTMENTS TAB ── */}
+          {editorTab === "adjust" && (
+            <div className="space-y-4">
+              {/* Brightness */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-neutral-400">{t("img_edit_brightness")}</span>
+                  <span className="font-bold text-cyan-300">{activeEditConfig.brightness}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="50"
+                  max="150"
+                  value={activeEditConfig.brightness}
+                  onChange={(e) => updateActiveConfig({ brightness: Number(e.target.value) })}
+                  className="w-full h-1 bg-neutral-850 rounded appearance-none cursor-pointer accent-cyan-300"
+                />
+              </div>
 
-                const cardTransform = `rotate(${item.editConfig.rotate}deg) scaleX(${item.editConfig.flipH ? -1 : 1}) scaleY(${item.editConfig.flipV ? -1 : 1})`;
+              {/* Contrast */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-neutral-400">{t("img_edit_contrast")}</span>
+                  <span className="font-bold text-cyan-300">{activeEditConfig.contrast}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="50"
+                  max="150"
+                  value={activeEditConfig.contrast}
+                  onChange={(e) => updateActiveConfig({ contrast: Number(e.target.value) })}
+                  className="w-full h-1 bg-neutral-850 rounded appearance-none cursor-pointer accent-cyan-300"
+                />
+              </div>
 
-                return (
-                  <article
-                    className="relative flex flex-col rounded-xl border border-white/5 bg-neutral-950/40 overflow-hidden shadow-md group hover:border-white/10 transition-all duration-300"
-                    key={item.id}
-                  >
-                    {/* Delete Item Button */}
+              {/* Saturation */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-neutral-400">{t("img_edit_saturation")}</span>
+                  <span className="font-bold text-cyan-300">{activeEditConfig.saturation}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="200"
+                  value={activeEditConfig.saturation}
+                  onChange={(e) => updateActiveConfig({ saturation: Number(e.target.value) })}
+                  className="w-full h-1 bg-neutral-850 rounded appearance-none cursor-pointer accent-cyan-300"
+                />
+              </div>
+
+              {/* Blur */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-neutral-400">{t("img_edit_blur")}</span>
+                  <span className="font-bold text-cyan-300">{activeEditConfig.blur}px</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="15"
+                  value={activeEditConfig.blur}
+                  onChange={(e) => updateActiveConfig({ blur: Number(e.target.value) })}
+                  className="w-full h-1 bg-neutral-850 rounded appearance-none cursor-pointer accent-cyan-300"
+                />
+              </div>
+
+              {/* Preset Filters */}
+              <div className="space-y-2 pt-2 border-t border-white/5">
+                <label className="text-neutral-400 block font-semibold">{t("img_edit_filter")}</label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {(
+                    [
+                      { id: "none", label: "Original" },
+                      { id: "grayscale", label: "Grayscale" },
+                      { id: "sepia", label: "Sepia" },
+                      { id: "invert", label: "Invert" },
+                      { id: "vintage", label: "Vintage" },
+                    ] as const
+                  ).map((filterOpt) => (
                     <button
-                      className="absolute top-2 right-2 z-10 p-1.5 rounded-full bg-neutral-950/80 border border-white/5 text-neutral-400 hover:text-white hover:bg-neutral-900 transition-all cursor-pointer"
-                      onClick={() => removeItem(item.id)}
-                      title={t("img_btn_remove")}
+                      key={filterOpt.id}
+                      onClick={() => updateActiveConfig({ filter: filterOpt.id })}
+                      className={[
+                        "py-1.5 px-2 rounded text-left border cursor-pointer font-medium transition truncate",
+                        activeEditConfig.filter === filterOpt.id
+                          ? "bg-cyan-500/10 border-cyan-500/40 text-cyan-400"
+                          : "bg-neutral-950 border-white/5 text-neutral-400 hover:text-white",
+                      ].join(" ")}
                       type="button"
                     >
-                      <CloseIcon />
+                      {filterOpt.label}
                     </button>
-
-                    {/* Interactive Edit/Crop Overlay Button */}
-                    <button
-                      className="absolute top-2 left-2 z-10 py-1 px-2.5 rounded-lg bg-cyan-400 border border-cyan-500/10 text-neutral-950 font-bold text-[10px] uppercase shadow-md hover:bg-cyan-300 hover:scale-[1.03] transition-all cursor-pointer"
-                      onClick={() => openEditor(item)}
-                      type="button"
-                    >
-                      🛠️ {t("img_item_btn_edit")}
-                    </button>
-
-                    {/* Preview Thumbnail Container */}
-                    <div className="relative aspect-[16/10] w-full bg-neutral-900 overflow-hidden flex items-center justify-center">
-                      <div className="relative w-full h-full flex items-center justify-center overflow-hidden" style={{ transform: cardTransform }}>
-                        {item.originalPreviewUrl ? (
-                          /* eslint-disable-next-line @next/next/no-img-element */
-                          <img
-                            src={item.originalPreviewUrl}
-                            alt={item.displayName}
-                            style={{ filter: cardFilter }}
-                            className="object-cover w-full h-full group-hover:scale-[1.03] transition-all duration-300"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-neutral-600 text-xs">
-                            {t("img_no_preview")}
-                          </div>
-                        )}
-                        {/* Thumbnail Watermark Preview Overlay */}
-                        {item.editConfig.watermarkEnabled && item.editConfig.watermarkText && (
-                          <div
-                            style={{
-                              color: item.editConfig.watermarkColor,
-                              opacity: item.editConfig.watermarkOpacity * 0.7,
-                              fontSize: "7px",
-                            }}
-                            className={[
-                              "absolute pointer-events-none font-bold uppercase select-none p-1.5 max-w-[80%] truncate",
-                              item.editConfig.watermarkPosition === "top-left" && "top-1 left-1",
-                              item.editConfig.watermarkPosition === "top-right" && "top-1 right-1",
-                              item.editConfig.watermarkPosition === "center" && "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2",
-                              item.editConfig.watermarkPosition === "bottom-left" && "bottom-1 left-1",
-                              item.editConfig.watermarkPosition === "bottom-right" && "bottom-1 right-1",
-                            ].join(" ")}
-                          >
-                            {item.editConfig.watermarkText}
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* Processing status pills */}
-                      <div className="absolute bottom-2 left-2 flex gap-1.5 z-10">
-                        {item.status === "idle" && (
-                          <span className="rounded bg-neutral-950/80 border border-white/5 px-2 py-0.5 text-[10px] font-medium text-neutral-400">
-                            {t("img_status_pending")}
-                          </span>
-                        )}
-                        {item.status === "processing" && (
-                          <span className="rounded bg-blue-500/20 border border-blue-500/30 px-2 py-0.5 text-[10px] font-medium text-blue-300">
-                            {t("img_status_processing")}
-                          </span>
-                        )}
-                        {item.status === "ready" && (
-                          <span className="rounded bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-medium text-emerald-300">
-                            {t("img_status_ready")}
-                          </span>
-                        )}
-                        {item.status === "error" && (
-                          <span className="rounded bg-red-500/20 border border-red-500/30 px-2 py-0.5 text-[10px] font-medium text-red-300">
-                            {t("img_status_error")}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Metadata and Stats */}
-                    <div className="flex-1 p-3.5 flex flex-col justify-between">
-                      <div className="min-w-0 mb-3">
-                        <h4 className="truncate text-xs font-semibold text-neutral-200" title={item.displayName}>
-                          {item.outputFile ? item.outputFile.name : item.displayName}
-                        </h4>
-                        
-                        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-neutral-400">
-                          <span>{t("img_size_original", { size: formatBytes(item.originalSize) })}</span>
-                          {item.outputSize ? (
-                            <>
-                              <span className="text-neutral-600">→</span>
-                              <span className="font-medium text-white">{formatBytes(item.outputSize)}</span>
-                              {(() => {
-                                const diff = item.originalSize - item.outputSize;
-                                const percent = Math.round((diff / item.originalSize) * 100);
-                                if (percent > 0) {
-                                  return (
-                                    <span className="rounded bg-emerald-500/10 px-1.5 py-0.2 text-[10px] font-semibold text-emerald-400 border border-emerald-500/10">
-                                      {t("img_size_reduced", { percent })}
-                                    </span>
-                                  );
-                                } else if (percent < 0) {
-                                  return (
-                                    <span className="rounded bg-amber-500/10 px-1.5 py-0.2 text-[10px] font-semibold text-amber-400 border border-amber-500/10">
-                                      {t("img_size_increased", { percent: Math.abs(percent) })}
-                                    </span>
-                                  );
-                                } else {
-                                  return <span className="text-neutral-500">{t("img_size_unchanged")}</span>;
-                                }
-                              })()}
-                            </>
-                          ) : null}
-                        </div>
-
-                        {item.error && (
-                          <p className="mt-2 text-xs text-red-400/90 bg-red-950/20 border border-red-500/10 rounded p-1.5 break-words">
-                            {t(item.error)}
-                          </p>
-                        )}
-
-                        {item.exif && isItemExifPresent && (
-                          <div className="mt-2.5 rounded-lg bg-neutral-950/30 p-2 text-[10px] text-neutral-400 border border-white/[0.03] space-y-1">
-                            <div className="flex justify-between items-center text-neutral-500">
-                              <span>{t("img_exif_title")}</span>
-                              {item.metadataCleared && (
-                                <span className="text-emerald-400/90 font-medium">{t("img_exif_cleared")}</span>
-                              )}
-                            </div>
-                            <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
-                              {item.exif.camera !== "none" && (
-                                <div className="truncate" title={item.exif.camera}>
-                                  {t("img_exif_camera", { camera: item.exif.camera })}
-                                </div>
-                              )}
-                              {item.exif.aperture !== "none" && <div>⭕ {item.exif.aperture}</div>}
-                              {item.exif.shutterSpeed !== "none" && <div>⚡ {item.exif.shutterSpeed}</div>}
-                              {item.exif.iso !== "none" && <div>🎞️ {item.exif.iso}</div>}
-                            </div>
-                          </div>
-                        )}
-                        
-                        {item.metadataCleared && !isItemExifPresent && (
-                          <p className="mt-2 text-[10px] text-emerald-400/90">
-                            {t("img_exif_cleared_msg")}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Card actions */}
-                      <div className="flex gap-2 border-t border-white/[0.05] pt-3">
-                        <button
-                          className="flex-1 rounded-md border border-white/10 px-2.5 py-1.5 text-xs font-semibold text-neutral-300 hover:text-white hover:border-white/20 transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-                          disabled={item.status === "processing" || item.metadataCleared}
-                          onClick={() => void clearMetadata(item)}
-                          type="button"
-                        >
-                          {t("img_btn_clear_exif")}
-                        </button>
-                        {item.downloadUrl ? (
-                          <a
-                            className="flex-1 rounded-md bg-cyan-400 px-2.5 py-1.5 text-center text-xs font-bold text-neutral-950 hover:bg-cyan-300 transition-all shadow-sm cursor-pointer"
-                            download={item.outputFile?.name ?? item.displayName}
-                            href={item.downloadUrl}
-                          >
-                            {t("img_btn_download")}
-                          </a>
-                        ) : (
-                          <button
-                            className="flex-1 rounded-md bg-neutral-850 px-2.5 py-1.5 text-xs font-semibold text-neutral-500 cursor-not-allowed"
-                            disabled
-                          >
-                            {t("img_btn_download")}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Progress slider overlay during batch processing */}
-                    {item.status === "processing" && (
-                      <div className="absolute bottom-0 left-0 right-0 h-1 bg-neutral-900 overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-cyan-400 to-blue-500 transition-all duration-300"
-                          style={{ width: `${Math.max(item.progress, 5)}%` }}
-                        />
-                      </div>
-                    )}
-                  </article>
-                );
-              })}
+                  ))}
+                </div>
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Right Global Configuration Sidebar */}
-          <aside className="lg:sticky lg:top-6 rounded-xl border border-white/10 bg-neutral-900/60 p-4.5 backdrop-blur-md shadow-xl space-y-5">
-            <div className="flex items-center gap-2 border-b border-white/5 pb-3">
-              <SettingsIcon />
-              <h3 className="text-sm font-bold text-white">{t("img_side_title")}</h3>
+          {/* ── WATERMARK TAB ── */}
+          {editorTab === "watermark" && (
+            <div className="space-y-4">
+              <label className="relative flex items-center justify-between cursor-pointer py-1">
+                <span className="font-semibold text-neutral-300">Bật đóng dấu ảnh</span>
+                <input
+                  type="checkbox"
+                  checked={activeEditConfig.watermarkEnabled}
+                  onChange={(e) => updateActiveConfig({ watermarkEnabled: e.target.checked })}
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 rounded-full bg-neutral-800 border border-white/10 peer-checked:bg-cyan-500/20 peer-checked:border-cyan-500/40 transition-all duration-300 relative shrink-0 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-neutral-400 peer-checked:after:bg-cyan-300 after:rounded-full after:h-3.5 after:w-3.5 after:transition-all after:duration-300 peer-checked:after:translate-x-4"></div>
+              </label>
+
+              {activeEditConfig.watermarkEnabled && (
+                <div className="space-y-3.5 pt-2.5 border-t border-white/5 animate-slideDown">
+                  {/* Text */}
+                  <div className="space-y-1.5">
+                    <label className="text-neutral-400 block font-semibold">{t("img_edit_watermark_text")}</label>
+                    <input
+                      type="text"
+                      value={activeEditConfig.watermarkText}
+                      onChange={(e) => updateActiveConfig({ watermarkText: e.target.value })}
+                      className="w-full px-3 py-1.5 text-neutral-200 bg-neutral-950 border border-white/10 rounded-lg focus:border-cyan-400 outline-none transition"
+                    />
+                  </div>
+
+                  {/* Font size & Opacity */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <span className="text-neutral-400 block">{t("img_edit_watermark_size")}</span>
+                      <input
+                        type="range"
+                        min="10"
+                        max="80"
+                        value={activeEditConfig.watermarkSize}
+                        onChange={(e) => updateActiveConfig({ watermarkSize: Number(e.target.value) })}
+                        className="w-full h-1 bg-neutral-850 rounded appearance-none cursor-pointer accent-cyan-300"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <span className="text-neutral-400 block">{t("img_edit_watermark_opacity")}</span>
+                      <input
+                        type="range"
+                        min="10"
+                        max="100"
+                        value={Math.round(activeEditConfig.watermarkOpacity * 100)}
+                        onChange={(e) => updateActiveConfig({ watermarkOpacity: Number(e.target.value) / 100 })}
+                        className="w-full h-1 bg-neutral-850 rounded appearance-none cursor-pointer accent-cyan-300"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Color & Position */}
+                  <div className="grid grid-cols-[60px_1fr] gap-3">
+                    <div className="space-y-1.5">
+                      <span className="text-neutral-400 block">{t("img_edit_watermark_color")}</span>
+                      <input
+                        type="color"
+                        value={activeEditConfig.watermarkColor}
+                        onChange={(e) => updateActiveConfig({ watermarkColor: e.target.value })}
+                        className="w-full h-8 rounded border border-white/10 bg-transparent cursor-pointer"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <span className="text-neutral-400 block">{t("img_edit_watermark_pos")}</span>
+                      <select
+                        value={activeEditConfig.watermarkPosition}
+                        onChange={(e) => updateActiveConfig({ watermarkPosition: e.target.value as ImageEditConfig["watermarkPosition"] })}
+                        className="w-full h-8 rounded-lg border border-white/10 bg-neutral-950 px-2 text-white outline-none focus:border-cyan-300/70"
+                      >
+                        <option value="top-left">{t("img_edit_watermark_pos_tl")}</option>
+                        <option value="top-right">{t("img_edit_watermark_pos_tr")}</option>
+                        <option value="center">{t("img_edit_watermark_pos_center")}</option>
+                        <option value="bottom-left">{t("img_edit_watermark_pos_bl")}</option>
+                        <option value="bottom-right">{t("img_edit_watermark_pos_br")}</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
+          )}
 
-            <div className="space-y-4 text-xs">
-              {/* Quality Compression Slider */}
+          {/* ── EXPORT TAB ── */}
+          {editorTab === "export" && (
+            <div className="space-y-4">
+              {/* Quality */}
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <span className="text-neutral-400">{t("img_side_quality")}</span>
@@ -1032,9 +969,9 @@ export default function ImageProcessor() {
                 />
               </div>
 
-              {/* Max Resolution Select */}
+              {/* Resolution */}
               <div className="space-y-2">
-                <label className="text-neutral-400 block">{t("img_side_max_res")}</label>
+                <label className="text-neutral-400 block font-semibold">{t("img_side_max_res")}</label>
                 <select
                   value={maxWidthHeight}
                   onChange={(e) => setMaxWidthHeight(e.target.value === "original" ? "original" : Number(e.target.value))}
@@ -1048,9 +985,9 @@ export default function ImageProcessor() {
                 </select>
               </div>
 
-              {/* Output Format Select */}
+              {/* Format */}
               <div className="space-y-2">
-                <label className="text-neutral-400 block">{t("img_side_output_fmt")}</label>
+                <label className="text-neutral-400 block font-semibold">{t("img_side_output_fmt")}</label>
                 <select
                   value={outputFormat}
                   onChange={(e) => setOutputFormat(e.target.value as "original" | "image/jpeg" | "image/png" | "image/webp")}
@@ -1063,7 +1000,7 @@ export default function ImageProcessor() {
                 </select>
               </div>
 
-              {/* Auto Metadata Clear Switch */}
+              {/* Auto Clear EXIF */}
               <label className="relative flex items-center justify-between cursor-pointer select-none py-1 border-t border-white/5 pt-4">
                 <div className="space-y-0.5">
                   <span className="block font-semibold text-white">{t("img_side_auto_clear_exif")}</span>
@@ -1078,30 +1015,64 @@ export default function ImageProcessor() {
                 <div className="w-9 h-5 rounded-full bg-neutral-800 border border-white/10 peer-checked:bg-cyan-500/20 peer-checked:border-cyan-500/40 transition-all duration-300 relative shrink-0 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-neutral-400 peer-checked:after:bg-cyan-300 after:rounded-full after:h-3.5 after:w-3.5 after:transition-all after:duration-300 peer-checked:after:translate-x-4"></div>
               </label>
             </div>
+          )}
+        </div>
 
-            {/* Run Button */}
-            <button
-              className="w-full mt-4 flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-cyan-400 to-blue-500 py-3 text-sm font-extrabold text-neutral-950 shadow-md shadow-cyan-500/10 hover:from-cyan-300 hover:to-blue-400 hover:scale-[1.01] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100 cursor-pointer"
-              disabled={isCompressing}
-              onClick={() => void processAll()}
-              type="button"
-            >
-              {isCompressing ? (
-                <>
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-neutral-950" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  {t("img_side_btn_processing")}
-                </>
-              ) : (
-                <>
-                  <SparklesIcon />
-                  {t("img_side_btn_process", { count: items.length })}
-                </>
-              )}
-            </button>
-          </aside>
+        {/* Sticky Actions Center */}
+        <div className="p-4 border-t border-white/5 bg-neutral-950/20 space-y-2 shrink-0">
+          <button
+            onClick={handleApplyEditsToAll}
+            disabled={items.length <= 1}
+            className="w-full flex items-center justify-center py-2 px-4 rounded-lg border border-cyan-500/20 text-cyan-300 font-bold hover:bg-cyan-500/10 transition disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+            type="button"
+          >
+            ✨ {t("img_edit_btn_apply_all")}
+          </button>
+          <button
+            className="w-full flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-cyan-400 to-blue-500 py-3 text-sm font-extrabold text-neutral-950 shadow-md shadow-cyan-500/10 hover:from-cyan-300 hover:to-blue-400 hover:scale-[1.01] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100 cursor-pointer"
+            disabled={isCompressing}
+            onClick={() => void processAll()}
+            type="button"
+          >
+            {isCompressing ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-neutral-950" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                {t("img_side_btn_processing")}
+              </>
+            ) : (
+              <>
+                <SparklesIcon />
+                {t("img_side_btn_process", { count: items.length })}
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <section className="rounded-xl border border-white/10 bg-neutral-900/40 p-4 sm:p-6 backdrop-blur-md shadow-2xl relative">
+      <input
+        accept="image/jpeg,image/png,image/webp"
+        className="sr-only"
+        multiple
+        onChange={(event) => {
+          if (event.target.files) void processFiles(event.target.files);
+          event.currentTarget.value = "";
+        }}
+        ref={inputRef}
+        type="file"
+      />
+
+      {items.length === 0 ? renderDropzone() : (
+        <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr_340px] gap-6 items-stretch min-h-[600px]">
+          {renderQueue()}
+          {renderPreview()}
+          {renderControls()}
         </div>
       )}
     </section>
@@ -1156,15 +1127,6 @@ function UploadIcon() {
   return (
     <svg aria-hidden="true" className="h-7 w-7" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" viewBox="0 0 24 24">
       <path d="M12 16V4M7 9l5-5 5 5M20 16.5V19a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2.5" />
-    </svg>
-  );
-}
-
-function SettingsIcon() {
-  return (
-    <svg fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" className="h-4 w-4 text-cyan-300">
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
     </svg>
   );
 }
