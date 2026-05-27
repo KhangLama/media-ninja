@@ -15,7 +15,7 @@ const viTranslations: Translations = {
   // Home Page
   "hero_tagline": "Client-side media toolkit",
   "hero_title": "Xử lý media nhanh, riêng tư và không cần upload.",
-  "hero_description": "MediaNinja gom các tác vụ nén ảnh, chỉnh metadata và xử lý video ngắn vào một giao diện tối giản, chạy trực tiếp trên trình duyệt của bạn.",
+  "hero_description": "MediaNinja gom các tác vụ xử lý ảnh (chỉnh sửa, đóng dấu, nén), chỉnh metadata và xử lý video ngắn vào một giao diện tối giản, chạy trực tiếp trên trình duyệt của bạn.",
   "metric_server_upload": "Server upload",
   "metric_media_tools": "Media tools",
   "metric_local_first": "Local-first",
@@ -23,9 +23,9 @@ const viTranslations: Translations = {
   "workspace_description": "Chọn công cụ, kéo thả file và xử lý tại chỗ trong trình duyệt.",
 
   // Tools Tab
-  "tool_image_title": "Nén ảnh",
-  "tool_image_label": "Image Optimizer",
-  "tool_image_desc": "Tối ưu hàng loạt ảnh WebP, JPEG, PNG với chất lượng linh hoạt.",
+  "tool_image_title": "Xử lý ảnh",
+  "tool_image_label": "Image Studio",
+  "tool_image_desc": "Biên tập, xoay lật, đóng dấu watermark và tối ưu hàng loạt ảnh 100% offline.",
   "tool_image_accept": "Kéo thả ảnh vào đây",
   "tool_video_title": "Xử lý Video",
   "tool_video_label": "FFmpeg.wasm",
@@ -37,8 +37,8 @@ const viTranslations: Translations = {
   "footer_privacy_note": "Không upload file mặc định. Không khóa dữ liệu của bạn.",
 
   // Image Processor Dropzone
-  "img_drop_title": "Nén ảnh trong trình duyệt",
-  "img_drop_desc": "Chọn hoặc kéo thả ảnh JPEG, PNG, WebP. Ảnh được xử lý 100% cục bộ trên thiết bị của bạn, bảo mật tuyệt đối.",
+  "img_drop_title": "Image Studio & Processor",
+  "img_drop_desc": "Biên tập, đóng dấu watermark, xoay lật và tối ưu hàng loạt ảnh JPEG, PNG, WebP trực tiếp trên trình duyệt của bạn.",
   "img_drop_btn": "Chọn ảnh từ máy",
 
   // Image Processor Workspace
@@ -49,7 +49,7 @@ const viTranslations: Translations = {
   "img_btn_download_zip": "Tải tất cả ZIP ({count})",
   "img_btn_zipping": "Đang tạo ZIP...",
   "img_btn_remove": "Xóa khỏi danh sách",
-  "img_status_pending": "Chờ nén",
+  "img_status_pending": "Chờ xử lý",
   "img_status_processing": "Đang xử lý",
   "img_status_ready": "Sẵn sàng",
   "img_status_error": "Lỗi",
@@ -66,7 +66,7 @@ const viTranslations: Translations = {
   "img_btn_download": "Tải về",
   
   // Image Processor Sidebar
-  "img_side_title": "Cấu hình nén ảnh",
+  "img_side_title": "Cấu hình xuất ảnh",
   "img_side_quality": "Chất lượng (Quality)",
   "img_side_max_res": "Kích thước ảnh tối đa",
   "img_side_keep_res": "Giữ nguyên độ phân giải",
@@ -77,8 +77,6 @@ const viTranslations: Translations = {
   "img_side_fmt_png": "Chuyển sang PNG",
   "img_side_auto_clear_exif": "Tự động xóa Metadata",
   "img_side_auto_clear_exif_desc": "Xóa EXIF & GPS bảo mật riêng tư",
-  "img_side_btn_compress": "Bắt đầu nén ({count})",
-  "img_side_btn_compressing": "Đang nén ảnh...",
 
   // Image Processor Errors
   "img_err_invalid_type": "Định dạng không hợp lệ. Vui lòng chọn ảnh JPEG, PNG hoặc WebP.",
@@ -346,7 +344,7 @@ const enTranslations: Translations = {
   // Home Page
   "hero_tagline": "Client-side media toolkit",
   "hero_title": "Fast, private media processing without uploading.",
-  "hero_description": "MediaNinja combines image compression, metadata editing, and short video processing into a minimalist interface, running directly in your browser.",
+  "hero_description": "MediaNinja combines client-side image editing (adjustments, watermarks, compression), metadata cleaning, and short video processing into a minimalist local-first workspace.",
   "metric_server_upload": "Server upload",
   "metric_media_tools": "Media tools",
   "metric_local_first": "Local-first",
@@ -354,9 +352,9 @@ const enTranslations: Translations = {
   "workspace_description": "Choose a tool, drag and drop files, and process them locally in your browser.",
 
   // Tools Tab
-  "tool_image_title": "Compress Images",
-  "tool_image_label": "Image Optimizer",
-  "tool_image_desc": "Batch optimize WebP, JPEG, PNG with flexible quality settings.",
+  "tool_image_title": "Image Studio",
+  "tool_image_label": "Image Studio",
+  "tool_image_desc": "Edit, watermark, transform, and batch optimize images 100% offline.",
   "tool_image_accept": "Drag & drop images here",
   "tool_video_title": "Trim Video",
   "tool_video_label": "FFmpeg.wasm",
@@ -368,8 +366,8 @@ const enTranslations: Translations = {
   "footer_privacy_note": "No file uploads by default. No data lock-in.",
 
   // Image Processor Dropzone
-  "img_drop_title": "Compress Images in Browser",
-  "img_drop_desc": "Select or drag and drop JPEG, PNG, WebP images. Images are processed 100% locally on your device, absolutely secure.",
+  "img_drop_title": "Image Studio & Processor",
+  "img_drop_desc": "Edit, watermark, transform, and optimize JPEG, PNG, WebP images directly in your browser.",
   "img_drop_btn": "Choose images from device",
 
   // Image Processor Workspace
@@ -397,7 +395,7 @@ const enTranslations: Translations = {
   "img_btn_download": "Download",
   
   // Image Processor Sidebar
-  "img_side_title": "Compression Settings",
+  "img_side_title": "Export Settings",
   "img_side_quality": "Quality",
   "img_side_max_res": "Max Resolution",
   "img_side_keep_res": "Keep original resolution",
@@ -408,8 +406,6 @@ const enTranslations: Translations = {
   "img_side_fmt_png": "Convert to PNG",
   "img_side_auto_clear_exif": "Auto-clear Metadata",
   "img_side_auto_clear_exif_desc": "Remove EXIF & GPS for privacy",
-  "img_side_btn_compress": "Start Compression ({count})",
-  "img_side_btn_compressing": "Compressing images...",
 
   // Image Processor Errors
   "img_err_invalid_type": "Invalid format. Please select JPEG, PNG, or WebP images.",
