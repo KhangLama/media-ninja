@@ -171,23 +171,34 @@ export default function ImageProcessor() {
       );
 
       setItems((currentItems) => {
-        const filteredNewItems = newItems.filter((newItem) => {
-          const isDuplicate = currentItems.some(
+        let updatedItems = [...currentItems];
+        const filteredNewItems: ProcessedImage[] = [];
+
+        for (const newItem of newItems) {
+          const duplicateIndex = updatedItems.findIndex(
             (item) => item.originalFile.name === newItem.originalFile.name && item.originalFile.size === newItem.originalFile.size
           );
-          if (isDuplicate) {
-            URL.revokeObjectURL(newItem.originalPreviewUrl);
-            objectUrlsRef.current.delete(newItem.originalPreviewUrl);
-            return false;
+
+          if (duplicateIndex !== -1) {
+            const existingItem = updatedItems[duplicateIndex];
+            if (existingItem.originalPreviewUrl) {
+              URL.revokeObjectURL(existingItem.originalPreviewUrl);
+              objectUrlsRef.current.delete(existingItem.originalPreviewUrl);
+            }
+            updatedItems[duplicateIndex] = {
+              ...existingItem,
+              originalPreviewUrl: newItem.originalPreviewUrl,
+            };
+          } else {
+            filteredNewItems.push(newItem);
           }
-          return true;
-        });
+        }
 
         if (filteredNewItems.length > 0) {
           setActiveEditId((currentId) => currentId || filteredNewItems[0].id);
         }
 
-        return [...currentItems, ...filteredNewItems];
+        return [...updatedItems, ...filteredNewItems];
       });
     },
     []

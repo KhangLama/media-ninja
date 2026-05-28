@@ -412,23 +412,34 @@ export default function VideoProcessor() {
       if (newProcessedVideos.length === 0) return;
 
       setVideos((current) => {
-        const filteredNewVideos = newProcessedVideos.filter((newVid) => {
-          const isDuplicate = current.some(
+        let updatedVideos = [...current];
+        const filteredNewVideos: ProcessedVideo[] = [];
+
+        for (const newVid of newProcessedVideos) {
+          const duplicateIndex = updatedVideos.findIndex(
             (v) => v.originalFile.name === newVid.originalFile.name && v.originalFile.size === newVid.originalFile.size
           );
-          if (isDuplicate) {
-            URL.revokeObjectURL(newVid.previewUrl);
-            createdUrlsRef.current.delete(newVid.previewUrl);
-            return false;
+
+          if (duplicateIndex !== -1) {
+            const existingVid = updatedVideos[duplicateIndex];
+            if (existingVid.previewUrl) {
+              URL.revokeObjectURL(existingVid.previewUrl);
+              createdUrlsRef.current.delete(existingVid.previewUrl);
+            }
+            updatedVideos[duplicateIndex] = {
+              ...existingVid,
+              previewUrl: newVid.previewUrl,
+            };
+          } else {
+            filteredNewVideos.push(newVid);
           }
-          return true;
-        });
+        }
 
-        if (filteredNewVideos.length === 0) return current;
+        if (filteredNewVideos.length === 0 && updatedVideos.length === current.length) return current;
 
-        const next = [...current, ...filteredNewVideos];
+        const next = [...updatedVideos, ...filteredNewVideos];
         if (activeIndex === null) {
-          setActiveIndex(current.length);
+          setActiveIndex(0);
         }
         return next;
       });

@@ -52,6 +52,7 @@ export function Breadcrumb({ current }: { current: string }) {
 function SiteHeader() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { language, setLanguage } = useLanguage();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -109,6 +110,22 @@ function SiteHeader() {
               <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
               100% Offline
             </div>
+
+            {/* Language Switcher */}
+            <button
+              onClick={() => setLanguage(language === "en" ? "vi" : "en")}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-semibold transition-all hover:scale-105 active:scale-95 cursor-pointer"
+              style={{
+                background: "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                color: "var(--text-secondary)",
+              }}
+              title={language === "en" ? "Switch to Vietnamese" : "Chuyển sang tiếng Anh"}
+              aria-label="Switch Language"
+            >
+              <span>{language === "en" ? "🇺🇸" : "🇻🇳"}</span>
+              <span className="font-bold text-[10px] tracking-wide">{language === "en" ? "EN" : "VI"}</span>
+            </button>
 
             {/* Mobile menu button */}
             <button

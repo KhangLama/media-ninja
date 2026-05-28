@@ -682,7 +682,7 @@ type LanguageContextType = {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const [language, setLanguageState] = useState<Language>("vi");
+  const [language, setLanguageState] = useState<Language>("en");
 
   useEffect(() => {
     const savedLanguage = localStorage.getItem("medianinja_lang") as Language;
