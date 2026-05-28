@@ -6,6 +6,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useLanguage } from "@/components/LanguageContext";
 import { PDFDocument, rgb, degrees, StandardFonts } from "pdf-lib";
 import JSZip from "jszip";
+import { getSharedFile, clearSharedFile } from "@/lib/sharedFileStore";
 
 // Simple SVG Icons to keep component self-contained and clean
 const MergeIcon = () => (
@@ -218,6 +219,14 @@ export default function PdfProcessor() {
       fileInputRef.current.value = "";
     }
   }, [activeTab, allowsMultiple]);
+
+  useEffect(() => {
+    const sharedFile = getSharedFile();
+    if (sharedFile) {
+      void handleFilesSelect([sharedFile]);
+      setTimeout(clearSharedFile, 100);
+    }
+  }, [handleFilesSelect]);
 
   // Remove individual file from list
   const removeFile = (id: string) => {

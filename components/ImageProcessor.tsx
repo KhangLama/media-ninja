@@ -5,7 +5,7 @@ import imageCompression from "browser-image-compression";
 import JSZip from "jszip";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLanguage } from "@/components/LanguageContext";
-import { getSharedFile } from "@/lib/sharedFileStore";
+import { getSharedFile, clearSharedFile } from "@/lib/sharedFileStore";
 
 type ProcessingStatus = "idle" | "processing" | "ready" | "error";
 
@@ -185,6 +185,7 @@ export default function ImageProcessor() {
     const sharedFile = getSharedFile();
     if (sharedFile) {
       void processFiles([sharedFile]);
+      setTimeout(clearSharedFile, 100);
     }
   }, [processFiles]);
 

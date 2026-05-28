@@ -5,7 +5,7 @@ import { fetchFile } from "@ffmpeg/util";
 import JSZip from "jszip";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLanguage } from "@/components/LanguageContext";
-import { getSharedFile } from "@/lib/sharedFileStore";
+import { getSharedFile, clearSharedFile } from "@/lib/sharedFileStore";
 
 type OutputFormat = "mp4" | "webm" | "gif" | "mp3";
 type ProcessorStatus = "idle" | "loading" | "ready" | "processing" | "done" | "error";
@@ -430,6 +430,7 @@ export default function VideoProcessor() {
     const sharedFile = getSharedFile();
     if (sharedFile) {
       void handleFiles([sharedFile]);
+      setTimeout(clearSharedFile, 100);
     }
   }, [handleFiles]);
 

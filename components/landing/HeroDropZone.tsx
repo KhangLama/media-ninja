@@ -71,6 +71,9 @@ export default function HeroDropZone() {
     } else if (file.type.startsWith("video/")) {
       setPendingFile(file);
       setShowVideoChoice(true);
+    } else if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+      setSharedFile(file);
+      router.push("/pdf-tools");
     }
   };
 
@@ -165,7 +168,7 @@ export default function HeroDropZone() {
             <label className="flex flex-col items-center justify-center gap-5 py-16 px-8 cursor-pointer select-none">
               <input
                 type="file"
-                accept="image/*,video/*"
+                accept="image/*,video/*,application/pdf"
                 className="sr-only"
                 onChange={handleFileInput}
                 id="drop-zone-input"

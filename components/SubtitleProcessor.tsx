@@ -4,7 +4,7 @@ import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile } from "@ffmpeg/util";
 import { useEffect, useRef, useState, useMemo } from "react";
 import { useLanguage } from "@/components/LanguageContext";
-import { getSharedFile } from "@/lib/sharedFileStore";
+import { getSharedFile, clearSharedFile } from "@/lib/sharedFileStore";
 
 export type SubtitleSegment = {
   id: string;
@@ -102,6 +102,7 @@ export default function SubtitleProcessor() {
     if (sharedFile) {
       setFile(sharedFile);
       setPreviewUrl(URL.createObjectURL(sharedFile));
+      setTimeout(clearSharedFile, 100);
     }
   }, []);
 
