@@ -638,21 +638,26 @@ export default function PdfProcessor() {
             const g = parseInt(hex.substring(2, 4), 16) / 255 || 0;
             const b = parseInt(hex.substring(4, 6), 16) / 255 || 0;
 
+            const rad = (textRotation * Math.PI) / 180;
+            const cos = Math.cos(rad);
+            const sin = Math.sin(rad);
+
+            // Calculate precise coordinates to align with CSS padding (left/right 4px, top/bottom 2px)
+            const textX = pdfX + 4 * cos;
+            const textY = pdfY + 4 * sin;
+
             if (edit.whiteout) {
               const textWidth = helveticaFont.widthOfTextAtSize(edit.text, edit.size);
               const textHeight = edit.size;
               
-              const rad = (textRotation * Math.PI) / 180;
-              const cos = Math.cos(rad);
-              const sin = Math.sin(rad);
-              const rectX = pdfX - 2 * cos + 2 * sin;
-              const rectY = pdfY - 2 * sin - 2 * cos;
+              const rectX = pdfX + 2 * sin;
+              const rectY = pdfY - 2 * cos;
 
               // Draw solid white masking rectangle to hide original content
               page.drawRectangle({
                 x: rectX,
                 y: rectY,
-                width: textWidth + 6,
+                width: textWidth + 8,
                 height: textHeight + 4,
                 color: rgb(1, 1, 1),
                 rotate: degrees(textRotation),
@@ -660,8 +665,8 @@ export default function PdfProcessor() {
             }
 
             page.drawText(edit.text, {
-              x: pdfX,
-              y: pdfY,
+              x: textX,
+              y: textY,
               size: edit.size,
               font: helveticaFont,
               color: rgb(r, g, b),
