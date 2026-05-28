@@ -70,13 +70,16 @@ function SiteHeader() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5 group flex-shrink-0">
             <div
-              className="relative w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm transition-all duration-300 group-hover:scale-110"
+              className="relative w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center transition-all duration-300 group-hover:scale-110"
               style={{
-                background: "linear-gradient(135deg, var(--accent-neon), var(--accent-cyan))",
                 boxShadow: "0 0 16px rgba(57,255,20,0.35)",
               }}
             >
-              <span className="text-black">N</span>
+              <img
+                src="/icon-192.png"
+                alt="MediaNinja Logo"
+                className="w-full h-full object-cover"
+              />
             </div>
             <span className="font-bold text-lg tracking-tight" style={{ color: "var(--text-primary)" }}>
               Media<span style={{ color: "var(--accent-neon)" }}>Ninja</span>
@@ -192,10 +195,13 @@ function SiteFooter() {
           <div>
             <div className="flex items-center gap-2 mb-2">
               <div
-                className="w-6 h-6 rounded-md flex items-center justify-center font-black text-xs"
-                style={{ background: "linear-gradient(135deg, var(--accent-neon), var(--accent-cyan))" }}
+                className="w-6 h-6 rounded-md overflow-hidden flex items-center justify-center transition-all duration-300"
               >
-                <span className="text-black">N</span>
+                <img
+                  src="/icon-192.png"
+                  alt="MediaNinja Logo"
+                  className="w-full h-full object-cover"
+                />
               </div>
               <span className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>
                 MediaNinja
