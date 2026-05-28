@@ -23,8 +23,7 @@ const tiles: BentoTile[] = [
     href: "/image-optimizer",
     emoji: "🖼️",
     title: "AI Image Compressor",
-    description:
-      "Batch compress JPEG, PNG & WebP. Before/After comparison slider. Download all as ZIP.",
+    description: "Batch compress JPEG, PNG & WebP. Before/After comparison slider. Download all as ZIP.",
     label: "Drag & drop · Batch · Export ZIP",
     accent: "var(--accent-neon)",
     accentRgb: "57,255,20",
@@ -36,8 +35,7 @@ const tiles: BentoTile[] = [
     href: "/video-processor",
     emoji: "✂️",
     title: "Video Cutter",
-    description:
-      "Mobile-first 9:16 preview. Drag-to-trim timeline. TikTok, Reels & Shorts presets built-in.",
+    description: "Mobile-first 9:16 preview. Drag-to-trim timeline. TikTok, Reels & Shorts presets built-in.",
     label: "TikTok · Reels · YouTube Shorts",
     accent: "var(--accent-purple)",
     accentRgb: "168,85,247",
@@ -49,8 +47,7 @@ const tiles: BentoTile[] = [
     href: "/subtitle-generator",
     emoji: "🎙️",
     title: "AI Auto-Subtitles",
-    description:
-      "Click any timestamped word to jump to that exact frame. Export SRT, VTT or burn-in.",
+    description: "Click any timestamped word to jump to that exact frame. Export SRT, VTT or burn-in.",
     label: "Whisper · SRT · VTT · Burn-in",
     accent: "var(--accent-cyan)",
     accentRgb: "34,211,238",
@@ -92,11 +89,21 @@ const tiles: BentoTile[] = [
   },
 ];
 
-function BentoCard({ tile, index }: { tile: BentoTile; index: number }) {
+/* ── BentoCard ─────────────────────────────────────────────────────────── */
+function BentoCard({
+  tile,
+  index,
+  wide = false,
+}: {
+  tile: BentoTile;
+  index: number;
+  wide?: boolean;
+}) {
   const ref = useRef<HTMLAnchorElement>(null);
 
   return (
     <motion.div
+      className="h-full"
       initial={{ opacity: 0, y: 32 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-60px" }}
@@ -105,8 +112,20 @@ function BentoCard({ tile, index }: { tile: BentoTile; index: number }) {
       <Link
         ref={ref}
         href={tile.href}
-        className="group bento-card flex flex-col h-full p-6 sm:p-7 relative overflow-hidden"
-        style={{ minHeight: tile.size === "small" ? "180px" : tile.size === "tall" ? "100%" : "260px" }}
+        className={`group bento-card h-full p-6 sm:p-7 relative overflow-hidden ${
+          wide
+            ? "flex flex-col sm:flex-row items-start sm:items-center gap-6"
+            : "flex flex-col"
+        }`}
+        style={{
+          minHeight: wide
+            ? "90px"
+            : tile.size === "small"
+            ? "180px"
+            : tile.size === "tall"
+            ? "100%"
+            : "260px",
+        }}
       >
         {/* Glow on hover */}
         <div
@@ -139,9 +158,9 @@ function BentoCard({ tile, index }: { tile: BentoTile; index: number }) {
           </div>
         )}
 
-        {/* Emoji icon */}
+        {/* Emoji */}
         <motion.div
-          className="text-3xl sm:text-4xl mb-4 w-fit"
+          className={`text-3xl sm:text-4xl w-fit flex-shrink-0 ${wide ? "" : "mb-4"}`}
           whileHover={{ scale: 1.15, rotate: 5 }}
           transition={{ type: "spring", stiffness: 400, damping: 15 }}
         >
@@ -149,23 +168,30 @@ function BentoCard({ tile, index }: { tile: BentoTile; index: number }) {
         </motion.div>
 
         {/* Content */}
-        <div className="flex-1 flex flex-col">
-          <h3
-            className="text-base sm:text-lg font-bold mb-2 transition-colors duration-200 group-hover:text-white"
-            style={{ color: "var(--text-primary)" }}
-          >
-            {tile.title}
-          </h3>
-          <p
-            className="text-sm leading-relaxed flex-1"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            {tile.description}
-          </p>
+        <div className={`flex-1 flex ${wide ? "flex-row items-center gap-6" : "flex-col"}`}>
+          <div className="flex-1">
+            <h3
+              className="text-base sm:text-lg font-bold mb-1.5 transition-colors duration-200 group-hover:text-white"
+              style={{ color: "var(--text-primary)" }}
+            >
+              {tile.title}
+            </h3>
+            <p className="text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+              {tile.description}
+            </p>
+          </div>
 
-          {/* Bottom row */}
-          <div className="flex items-center justify-between mt-4 pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-            <span className="text-xs font-medium" style={{ color: tile.accent, opacity: 0.8 }}>
+          {/* Label + arrow */}
+          <div
+            className={`flex items-center justify-between gap-4 flex-shrink-0 ${
+              wide ? "" : "mt-4 pt-4"
+            }`}
+            style={wide ? {} : { borderTop: "1px solid rgba(255,255,255,0.06)" }}
+          >
+            <span
+              className="text-xs font-medium whitespace-nowrap"
+              style={{ color: tile.accent, opacity: 0.8 }}
+            >
               {tile.label}
             </span>
             <motion.span
@@ -184,6 +210,7 @@ function BentoCard({ tile, index }: { tile: BentoTile; index: number }) {
   );
 }
 
+/* ── BentoGrid ─────────────────────────────────────────────────────────── */
 export default function BentoGrid() {
   const headerRef = useRef<HTMLDivElement>(null);
   const headerInView = useInView(headerRef, { once: true, margin: "-60px" });
@@ -206,39 +233,38 @@ export default function BentoGrid() {
         >
           ✦ The Toolkit
         </p>
-        <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold" style={{ color: "var(--text-primary)" }}>
+        <h2
+          className="text-2xl sm:text-3xl lg:text-4xl font-extrabold"
+          style={{ color: "var(--text-primary)" }}
+        >
           Every media task.{" "}
           <span style={{ color: "var(--text-muted)" }}>One place.</span>
         </h2>
       </motion.div>
 
-      {/* Bento grid layout */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-fr">
-        {/* Row 1: Image (large) + Video (tall/spans 2 rows) + PDF */}
-        <div className="sm:col-span-1 lg:col-span-1">
-          <BentoCard tile={image} index={0} />
-        </div>
+      {/* Bento grid
+          Desktop (lg):  col1        | col2 (row-span-2) | col3
+          Row 1:         Image        | Video             | PDF
+          Row 2:         Subtitle     | Video (cont.)     | OCR
+          Row 3:         QR ──────────────────────────────────── (col-span-3)
+      */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Row 1 */}
+        <div><BentoCard tile={image} index={0} /></div>
 
-        <div className="sm:row-span-2 lg:row-span-2 sm:col-span-1">
+        <div className="sm:row-span-2">
           <BentoCard tile={video} index={1} />
         </div>
 
-        <div className="sm:col-span-1">
-          <BentoCard tile={pdf} index={2} />
-        </div>
+        <div><BentoCard tile={pdf} index={2} /></div>
 
-        {/* Row 2: Subtitle (spans 1) + OCR */}
-        <div className="sm:col-span-1 lg:col-span-1">
-          <BentoCard tile={subtitle} index={3} />
-        </div>
+        {/* Row 2 */}
+        <div><BentoCard tile={subtitle} index={3} /></div>
+        <div><BentoCard tile={ocr} index={4} /></div>
 
-        <div className="sm:col-span-1">
-          <BentoCard tile={ocr} index={4} />
-        </div>
-
-        {/* Row 3: QR full width on mobile, small on desktop */}
-        <div className="sm:col-span-2 lg:col-span-1">
-          <BentoCard tile={qr} index={5} />
+        {/* Row 3 — QR full-width banner, no orphan gap */}
+        <div className="sm:col-span-2 lg:col-span-3">
+          <BentoCard tile={qr} index={5} wide />
         </div>
       </div>
     </section>
