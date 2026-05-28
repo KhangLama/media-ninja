@@ -3,6 +3,7 @@
 import { useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, useMotionValue, useTransform, AnimatePresence } from "framer-motion";
+import { setSharedFile } from "@/lib/sharedFileStore";
 
 type DropChoice = "video-processor" | "subtitle-generator" | null;
 
@@ -10,6 +11,7 @@ export default function HeroDropZone() {
   const router = useRouter();
   const [isDragging, setIsDragging] = useState(false);
   const [showVideoChoice, setShowVideoChoice] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const dropRef = useRef<HTMLDivElement>(null);
   const dragCounter = useRef(0);
 
@@ -64,8 +66,10 @@ export default function HeroDropZone() {
 
   const routeFile = (file: File) => {
     if (file.type.startsWith("image/")) {
+      setSharedFile(file);
       router.push("/image-optimizer");
     } else if (file.type.startsWith("video/")) {
+      setPendingFile(file);
       setShowVideoChoice(true);
     }
   };
@@ -238,6 +242,9 @@ export default function HeroDropZone() {
             onClose={() => setShowVideoChoice(false)}
             onChoice={(route) => {
               setShowVideoChoice(false);
+              if (pendingFile) {
+                setSharedFile(pendingFile);
+              }
               router.push(`/${route}`);
             }}
           />
