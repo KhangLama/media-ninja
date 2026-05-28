@@ -242,30 +242,10 @@ export default function BentoGrid() {
         </h2>
       </motion.div>
 
-      {/* Bento grid
-          Desktop (lg):  col1        | col2 (row-span-2) | col3
-          Row 1:         Image        | Video             | PDF
-          Row 2:         Subtitle     | Video (cont.)     | OCR
-          Row 3:         QR ──────────────────────────────────── (col-span-3)
-      */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {/* Row 1 */}
-        <div><BentoCard tile={image} index={0} /></div>
-
-        <div className="sm:row-span-2">
-          <BentoCard tile={video} index={1} />
-        </div>
-
-        <div><BentoCard tile={pdf} index={2} /></div>
-
-        {/* Row 2 */}
-        <div><BentoCard tile={subtitle} index={3} /></div>
-        <div><BentoCard tile={ocr} index={4} /></div>
-
-        {/* Row 3 — QR full-width banner, no orphan gap */}
-        <div className="sm:col-span-2 lg:col-span-3">
-          <BentoCard tile={qr} index={5} wide />
-        </div>
+        {tiles.map((tile, i) => (
+          <BentoCard key={tile.id} tile={tile} index={i} />
+        ))}
       </div>
     </section>
   );
