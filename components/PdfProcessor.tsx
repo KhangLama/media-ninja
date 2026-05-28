@@ -643,20 +643,22 @@ export default function PdfProcessor() {
             const sin = Math.sin(rad);
 
             // Calculate precise coordinates to align with CSS padding (left/right 4px, top/bottom 2px)
-            const textX = pdfX + 4 * cos;
-            const textY = pdfY + 4 * sin;
+            // localDX = 4 (left padding)
+            // localDY = 2 (bottom padding) + font descender offset (approx 22% of font size)
+            const localDX = 4;
+            const localDY = 2 + edit.size * 0.22;
+
+            const textX = pdfX + localDX * cos - localDY * sin;
+            const textY = pdfY + localDX * sin + localDY * cos;
 
             if (edit.whiteout) {
               const textWidth = helveticaFont.widthOfTextAtSize(edit.text, edit.size);
               const textHeight = edit.size;
-              
-              const rectX = pdfX + 2 * sin;
-              const rectY = pdfY - 2 * cos;
 
-              // Draw solid white masking rectangle to hide original content
+              // Draw solid white masking rectangle exactly at the box origin
               page.drawRectangle({
-                x: rectX,
-                y: rectY,
+                x: pdfX,
+                y: pdfY,
                 width: textWidth + 8,
                 height: textHeight + 4,
                 color: rgb(1, 1, 1),
