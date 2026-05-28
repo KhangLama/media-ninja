@@ -4,6 +4,7 @@ import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile } from "@ffmpeg/util";
 import { useEffect, useRef, useState, useMemo } from "react";
 import { useLanguage } from "@/components/LanguageContext";
+import { getSharedFile } from "@/lib/sharedFileStore";
 
 export type SubtitleSegment = {
   id: string;
@@ -95,6 +96,14 @@ export default function SubtitleProcessor() {
       if (burnedVideoUrl) URL.revokeObjectURL(burnedVideoUrl);
     };
   }, [previewUrl, burnedVideoUrl]);
+
+  useEffect(() => {
+    const sharedFile = getSharedFile();
+    if (sharedFile) {
+      setFile(sharedFile);
+      setPreviewUrl(URL.createObjectURL(sharedFile));
+    }
+  }, []);
 
   // Track playback time
   const handleTimeUpdate = () => {

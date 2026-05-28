@@ -5,6 +5,7 @@ import imageCompression from "browser-image-compression";
 import JSZip from "jszip";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLanguage } from "@/components/LanguageContext";
+import { getSharedFile } from "@/lib/sharedFileStore";
 
 type ProcessingStatus = "idle" | "processing" | "ready" | "error";
 
@@ -179,6 +180,13 @@ export default function ImageProcessor() {
     },
     []
   );
+
+  useEffect(() => {
+    const sharedFile = getSharedFile();
+    if (sharedFile) {
+      void processFiles([sharedFile]);
+    }
+  }, [processFiles]);
 
   const updateActiveConfig = useCallback((patch: Partial<ImageEditConfig>) => {
     if (activeEditId) {
