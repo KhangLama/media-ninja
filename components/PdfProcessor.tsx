@@ -149,10 +149,9 @@ export default function PdfProcessor() {
     return "application/pdf,.pdf";
   }, [activeTab]);
 
-  // Reset queue when active tab changes
+  // Filter and preserve queue when active tab changes
   const handleTabChange = (tabId: TabId) => {
     setActiveTab(tabId);
-    setFiles([]);
     setStatus("idle");
     setProgress(0);
     setShowPreview(false);
@@ -163,6 +162,26 @@ export default function PdfProcessor() {
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
+
+    setFiles((prevFiles) => {
+      if (tabId === "img-to-pdf") {
+        // Keep only image files
+        return prevFiles.filter((f) => f.file.type.startsWith("image/"));
+      } else {
+        // PDF tabs: Keep only PDF files
+        const pdfFiles = prevFiles.filter(
+          (f) =>
+            f.file.type === "application/pdf" ||
+            f.file.name.toLowerCase().endsWith(".pdf")
+        );
+        if (tabId === "merge") {
+          return pdfFiles;
+        } else {
+          // Single PDF tab: Keep at most the first PDF file
+          return pdfFiles.slice(0, 1);
+        }
+      }
+    });
   };
 
   // Helper: Read page count of PDF files safely
