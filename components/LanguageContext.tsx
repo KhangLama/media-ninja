@@ -22,6 +22,104 @@ const viTranslations: Translations = {
   "workspace_title": "Bắt đầu xử lý",
   "workspace_description": "Chọn công cụ, kéo thả file và xử lý tại chỗ trong trình duyệt.",
 
+  "hero_badge": "Quá trình xử lý diễn ra hoàn toàn trong trình duyệt của bạn",
+  "hero_title_1": "Media của bạn.",
+  "hero_title_2": "Sự riêng tư của bạn.",
+  "hero_description_text": "Kéo thả bất kỳ file nào dưới đây. MediaNinja sẽ xử lý — hoàn toàn offline, không tải lên bất kỳ máy chủ nào.",
+  "drop_release": "Thả ra để bắt đầu xử lý",
+  "drop_prompt": "Kéo thả file vào đây",
+  "drop_browse": "hoặc click để chọn file",
+  "drop_err_unsupported": "Định dạng file không được hỗ trợ. Vui lòng chọn hoặc kéo thả file ảnh, video hoặc PDF.",
+
+  "video_choice_title": "Bạn muốn làm gì với video này?",
+  "video_choice_desc": "Chọn công cụ phù hợp để xử lý video",
+  "video_choice_cutter": "Cắt Video",
+  "video_choice_cutter_desc": "Cắt & chỉnh khung hình cho TikTok/Reels",
+  "video_choice_subtitles": "Phụ đề AI",
+  "video_choice_subtitles_desc": "Tự động tạo phụ đề với Whisper AI",
+
+  "bento_tagline": "✦ Hộp công cụ",
+  "bento_title": "Mọi tác vụ media.",
+  "bento_title_muted": "Tại một nơi duy nhất.",
+
+  "bento_title_image": "Nén ảnh Studio",
+  "bento_desc_image": "Nén hàng loạt JPEG, PNG & WebP. Xem trước so sánh trực quan. Tải về file ZIP.",
+  "bento_label_image": "Kéo thả · Hàng loạt · Xuất ZIP",
+
+  "bento_title_video": "Cắt Video ngắn",
+  "bento_desc_video": "Xem trước khung dọc 9:16. Trình chỉnh sửa trực quan timeline. Tương thích TikTok/Reels.",
+  "bento_label_video": "TikTok · Reels · Shorts",
+
+  "bento_title_subtitle": "Phụ đề tự động AI",
+  "bento_desc_subtitle": "Click vào chữ để tua nhanh đến khung hình. Xuất file SRT, VTT hoặc chèn cứng phụ đề.",
+  "bento_label_subtitle": "Whisper · SRT · VTT · Chèn cứng",
+
+  "bento_title_pdf": "Bộ công cụ PDF",
+  "bento_desc_pdf": "Ghép, tách, nén, đóng dấu bản quyền & xoay PDF hoàn toàn offline.",
+  "bento_label_pdf": "Ghép · Tách · Đóng dấu",
+
+  "bento_title_ocr": "Trích xuất chữ OCR",
+  "bento_desc_ocr": "Nhận diện và trích xuất chữ viết từ ảnh & PDF sử dụng Tesseract.js cục bộ.",
+  "bento_label_ocr": "Tesseract.js · Ngoại tuyến",
+
+  "bento_title_qr": "QR Studio",
+  "bento_desc_qr": "Tạo mã QR tùy chỉnh màu sắc, gradient, logo và quét mã QR offline.",
+  "bento_label_qr": "Màu gradient · Logo · Tự chọn",
+
+  "stat_uploads": "Không tải lên server",
+  "stat_tools": "Công cụ mạnh mẽ",
+  "stat_processing": "Xử lý offline cục bộ",
+  "stat_time": "Thời gian upload",
+
+  "features_tagline": "✦ Tìm hiểu sâu",
+  "features_title": "Được thiết kế cho",
+  "features_title_muted": "nhà sáng tạo nội dung.",
+  "btn_try_now": "Thử ngay",
+  "before": "Trước",
+  "after": "Sau",
+
+  "feat_title_image": "Xem trước so sánh Trước/Sau",
+  "feat_subtitle_image": "Nén ảnh Studio",
+  "feat_desc_image": "Kéo thanh phân chia để xem chính xác chất lượng ảnh bạn đang giữ lại. Nén hàng loạt hàng trăm bức ảnh và tải tất cả về dưới dạng một file ZIP duy nhất — tất cả chỉ trong vài giây.",
+  "feat_highlight_image_0": "Thanh trượt so sánh trực quan",
+  "feat_highlight_image_1": "Xử lý hàng loạt — không giới hạn file",
+  "feat_highlight_image_2": "Xóa metadata GPS & EXIF riêng tư",
+  "feat_highlight_image_3": "Hỗ trợ JPEG, PNG, WebP",
+
+  "feat_title_video": "Tương thích TikTok & Reels",
+  "feat_subtitle_video": "Cắt Video",
+  "feat_desc_video": "Xem trước khung hình dọc 9:16 di động với dòng thời gian kéo để cắt. Thiết lập sẵn 1-click cho TikTok, Instagram Reels và YouTube Shorts. Chạy bằng thư viện FFmpeg trực tiếp trong trình duyệt của bạn.",
+  "feat_highlight_video_0": "Xem trước 9:16 cho TikTok & Reels",
+  "feat_highlight_video_1": "Dòng thời gian kéo để cắt trực quan",
+  "feat_highlight_video_2": "Cài đặt sẵn (TikTok, Reels, Shorts)",
+  "feat_highlight_video_3": "FFmpeg WASM — không tải lên máy chủ",
+
+  "feat_title_subtitle": "Bấm vào chữ → Tua đến khung hình",
+  "feat_subtitle_subtitle": "Phụ đề AI",
+  "feat_desc_subtitle": "Trình chỉnh sửa video dựa trên văn bản. Bấm vào bất kỳ từ nào có mốc thời gian trong bản dịch để nhảy ngay đến khung hình tương ứng trong video. Biên tập, xuất file SRT/VTT hoặc chèn cứng trực tiếp vào video.",
+  "feat_highlight_subtitle_0": "Whisper AI — chạy 100% offline",
+  "feat_highlight_subtitle_1": "Bấm từ → tua nhanh đến khung hình",
+  "feat_highlight_subtitle_2": "Xuất file SRT, VTT, TXT",
+  "feat_highlight_subtitle_3": "Chèn cứng phụ đề vào video",
+
+  "tech_title": "Được thiết kế cho nhà sáng tạo chú trọng bảo mật",
+  "tech_description": "Mọi công cụ chạy 100% trong trình duyệt của bạn. Các tệp tin được xử lý cục bộ bằng WebAssembly và không bao giờ chuyển đến máy chủ của chúng tôi — bởi vì không có bất kỳ máy chủ nào.",
+  "tech_powered_by": "Chạy trên nền tảng công nghệ mã nguồn mở",
+
+  "privacy_point_1": "Hoàn toàn không tải lên server",
+  "privacy_point_2": "Mô hình AI lưu trong trình duyệt",
+  "privacy_point_3": "Không tài khoản, theo dõi, quảng cáo",
+  "privacy_point_4": "Chạy offline sau lần tải đầu",
+
+  "tech_desc_ffmpeg": "Xử lý video",
+  "tech_desc_whisper": "Nhận dạng giọng nói AI",
+  "tech_desc_workers": "Thực thi song song, không khóa luồng",
+  "tech_desc_tesseract": "Nhận diện văn bản",
+  "tech_desc_pdf": "Xử lý file PDF",
+  "tech_desc_wasm": "Tốc độ tối ưu như native",
+  "tech_desc_canvas": "Xử lý hình ảnh",
+  "tech_desc_indexeddb": "Lưu trữ cục bộ",
+
   // Tools Tab
   "tool_image_title": "Xử lý ảnh",
   "tool_image_label": "Image Studio",
@@ -35,6 +133,9 @@ const viTranslations: Translations = {
   // Footer
   "footer_tagline": "© 2026 MediaNinja. Local-first media tools.",
   "footer_privacy_note": "Không upload file mặc định. Không khóa dữ liệu của bạn.",
+  "footer_desc": "File của bạn không bao giờ rời khỏi thiết bị. Không máy chủ. Không tải lên. Riêng tư 100%.",
+  "footer_license": "© 2026 MediaNinja. Mã nguồn mở dưới giấy phép MIT.",
+  "privacy_badge_text": "🔒 100% Offline — Dữ liệu không rời khỏi thiết bị của bạn",
 
   // Image Processor Dropzone
   "img_drop_title": "Image Studio & Processor",
@@ -353,6 +454,104 @@ const enTranslations: Translations = {
   "workspace_title": "Start Processing",
   "workspace_description": "Choose a tool, drag and drop files, and process them locally in your browser.",
 
+  "hero_badge": "Processing happens entirely in your browser",
+  "hero_title_1": "Your Media.",
+  "hero_title_2": "Your Privacy.",
+  "hero_description_text": "Drop any file below. MediaNinja handles it — entirely offline, with zero uploads to any server.",
+  "drop_release": "Release to process",
+  "drop_prompt": "Drop your file here",
+  "drop_browse": "or click to browse",
+  "drop_err_unsupported": "Unsupported file format. Please choose or drop image, video, or PDF files.",
+
+  "video_choice_title": "What do you want to do with this video?",
+  "video_choice_desc": "Choose a tool to process your video",
+  "video_choice_cutter": "Video Cutter",
+  "video_choice_cutter_desc": "Trim & crop for TikTok/Reels",
+  "video_choice_subtitles": "AI Subtitles",
+  "video_choice_subtitles_desc": "Auto-generate with Whisper",
+
+  "bento_tagline": "✦ The Toolkit",
+  "bento_title": "Every media task.",
+  "bento_title_muted": "One place.",
+
+  "bento_title_image": "AI Image Compressor",
+  "bento_desc_image": "Batch compress JPEG, PNG & WebP. Before/After comparison slider. Download all as ZIP.",
+  "bento_label_image": "Drag & drop · Batch · Export ZIP",
+
+  "bento_title_video": "Video Cutter",
+  "bento_desc_video": "Mobile-first 9:16 preview. Drag-to-trim timeline. TikTok, Reels & Shorts presets built-in.",
+  "bento_label_video": "TikTok · Reels · YouTube Shorts",
+
+  "bento_title_subtitle": "AI Auto-Subtitles",
+  "bento_desc_subtitle": "Click any timestamped word to jump to that exact frame. Export SRT, VTT or burn-in.",
+  "bento_label_subtitle": "Whisper · SRT · VTT · Burn-in",
+
+  "bento_title_pdf": "PDF Suite",
+  "bento_desc_pdf": "Merge, split, compress, watermark & rotate PDFs — all offline.",
+  "bento_label_pdf": "Merge · Split · Watermark",
+
+  "bento_title_ocr": "OCR Extractor",
+  "bento_desc_ocr": "Extract text from images & PDFs using Tesseract.js — no cloud needed.",
+  "bento_label_ocr": "Tesseract.js · Offline",
+
+  "bento_title_qr": "QR Studio",
+  "bento_desc_qr": "Generate customised QR codes with gradients, logos & offline scanning.",
+  "bento_label_qr": "Custom · Gradient · Logo",
+
+  "stat_uploads": "Server Uploads",
+  "stat_tools": "Powerful Tools",
+  "stat_processing": "Local Processing",
+  "stat_time": "Upload Time",
+
+  "features_tagline": "✦ Deep Dive",
+  "features_title": "Designed for",
+  "features_title_muted": "content creators.",
+  "btn_try_now": "Try it now",
+  "before": "Before",
+  "after": "After",
+
+  "feat_title_image": "Before / After Comparison",
+  "feat_subtitle_image": "Image Compressor",
+  "feat_desc_image": "Drag the divider to see exactly how much quality you're preserving. Batch compress hundreds of images and download everything as a single ZIP — all in seconds.",
+  "feat_highlight_image_0": "Interactive comparison slider",
+  "feat_highlight_image_1": "Batch processing — unlimited files",
+  "feat_highlight_image_2": "EXIF & GPS metadata removal",
+  "feat_highlight_image_3": "JPEG, PNG, WebP support",
+
+  "feat_title_video": "TikTok-Ready Presets",
+  "feat_subtitle_video": "Video Cutter",
+  "feat_desc_video": "Mobile-first 9:16 preview with a drag-to-trim timeline. One-click presets for TikTok, Instagram Reels, and YouTube Shorts. Powered by FFmpeg running entirely in your browser.",
+  "feat_highlight_video_0": "9:16 TikTok & Reels preview",
+  "feat_highlight_video_1": "Drag-to-trim timeline",
+  "feat_highlight_video_2": "Platform presets (TikTok, Reels, Shorts)",
+  "feat_highlight_video_3": "FFmpeg WASM — zero server uploads",
+
+  "feat_title_subtitle": "Click Text → Jump to Frame",
+  "feat_subtitle_subtitle": "AI Auto-Subtitles",
+  "feat_desc_subtitle": "A text-based video editor. Click any timestamped word in the transcript to jump to that exact frame in the video. Edit, export as SRT/VTT, or burn directly into the video.",
+  "feat_highlight_subtitle_0": "Whisper AI — runs 100% offline",
+  "feat_highlight_subtitle_1": "Click word → jump to frame",
+  "feat_highlight_subtitle_2": "Export SRT, VTT, TXT",
+  "feat_highlight_subtitle_3": "Burn-in subtitles to video",
+
+  "tech_title": "Built for the privacy-conscious creator",
+  "tech_description": "Every tool runs 100% in your browser. Your files are processed locally using WebAssembly and never touch our servers — because there are no servers.",
+  "tech_powered_by": "Powered by open-source technology",
+
+  "privacy_point_1": "Zero server uploads — ever",
+  "privacy_point_2": "AI models cached in your browser",
+  "privacy_point_3": "No account, no tracking, no ads",
+  "privacy_point_4": "Works fully offline after first load",
+
+  "tech_desc_ffmpeg": "Video processing",
+  "tech_desc_whisper": "AI Speech-to-Text",
+  "tech_desc_workers": "Non-blocking execution",
+  "tech_desc_tesseract": "OCR engine",
+  "tech_desc_pdf": "PDF manipulation",
+  "tech_desc_wasm": "Near-native speed",
+  "tech_desc_canvas": "Image processing",
+  "tech_desc_indexeddb": "Local storage",
+
   // Tools Tab
   "tool_image_title": "Image Studio",
   "tool_image_label": "Image Studio",
@@ -366,6 +565,9 @@ const enTranslations: Translations = {
   // Footer
   "footer_tagline": "© 2026 MediaNinja. Local-first media tools.",
   "footer_privacy_note": "No file uploads by default. No data lock-in.",
+  "footer_desc": "Your files never leave your device. Zero servers. Zero uploads. 100% private.",
+  "footer_license": "© 2026 MediaNinja. Open source under MIT License.",
+  "privacy_badge_text": "🔒 100% Offline — Your data never leaves your device",
 
   // Image Processor Dropzone
   "img_drop_title": "Image Studio & Processor",

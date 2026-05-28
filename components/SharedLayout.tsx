@@ -201,6 +201,8 @@ function NavItem({ href, label }: { href: string; label: string }) {
 const GITHUB_URL = "https://github.com/KhangLama/media-ninja";
 
 function SiteFooter() {
+  const { t } = useLanguage();
+
   return (
     <footer
       className="mt-24 border-t"
@@ -225,7 +227,7 @@ function SiteFooter() {
               </span>
             </div>
             <p className="text-xs max-w-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-              Your files never leave your device. Zero servers. Zero uploads. 100% private.
+              {t("footer_desc")}
             </p>
             <a
               href="https://github.com/KhangLama"
@@ -280,7 +282,7 @@ function SiteFooter() {
           className="mt-8 pt-6 border-t flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs"
           style={{ borderColor: "var(--border-subtle)", color: "var(--text-muted)" }}
         >
-          <span>© 2026 MediaNinja. Open source under MIT License.</span>
+          <span>{t("footer_license")}</span>
           <a
             href={GITHUB_URL}
             target="_blank"
@@ -298,6 +300,7 @@ function SiteFooter() {
 
 /* ── Floating Privacy Badge ─────────────────────────────────────────────── */
 function PrivacyBadge() {
+  const { t } = useLanguage();
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -324,7 +327,7 @@ function PrivacyBadge() {
               boxShadow: "0 4px 24px rgba(0,0,0,0.4), 0 0 0 1px rgba(57,255,20,0.1)",
             }}
           >
-            🔒 100% Offline — Your data never leaves your device
+            {t("privacy_badge_text")}
           </div>
         </motion.div>
       )}
