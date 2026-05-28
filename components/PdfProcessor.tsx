@@ -83,7 +83,24 @@ const ArrowDownIcon = () => (
   </svg>
 );
 
-type TabId = "merge" | "split" | "img-to-pdf" | "pdf-to-img" | "compress" | "rotate" | "watermark";
+const EditIcon = () => (
+  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+  </svg>
+);
+
+type TabId = "merge" | "split" | "img-to-pdf" | "pdf-to-img" | "compress" | "rotate" | "watermark" | "edit";
+
+type PdfTextEdit = {
+  id: string;
+  page: number; // 1-indexed page
+  text: string;
+  x: number; // percentage (0-100)
+  y: number; // percentage (0-100)
+  size: number;
+  color: string;
+  whiteout: boolean;
+};
 
 type QueuedFile = {
   id: string;
@@ -104,6 +121,8 @@ export default function PdfProcessor() {
   const [outputName, setOutputName] = useState("");
   const [pdfjs, setPdfjs] = useState<any>(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [textEdits, setTextEdits] = useState<PdfTextEdit[]>([]);
+  const [selectedEditId, setSelectedEditId] = useState<string | null>(null);
 
   // Configuration States
   const [splitRange, setSplitRange] = useState("1-");
@@ -155,6 +174,8 @@ export default function PdfProcessor() {
     setStatus("idle");
     setProgress(0);
     setShowPreview(false);
+    setTextEdits([]);
+    setSelectedEditId(null);
     if (downloadUrl) {
       URL.revokeObjectURL(downloadUrl);
       setDownloadUrl(null);
@@ -567,6 +588,61 @@ export default function PdfProcessor() {
         setOutputName(`medianinja-watermarked-${mainFile.file.name}`);
       }
 
+      else if (activeTab === "edit") {
+        const mainFile = files[0];
+        const bytes = await mainFile.file.arrayBuffer();
+        const pdfDoc = await PDFDocument.load(bytes);
+        const pages = pdfDoc.getPages();
+        const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+        // Process all placed text edits
+        for (const edit of textEdits) {
+          const pageIdx = edit.page - 1;
+          if (pageIdx >= 0 && pageIdx < pages.length) {
+            const page = pages[pageIdx];
+            const { width, height } = page.getSize();
+            
+            // Map percentage coordinates (0-100) to PDF point dimensions
+            // Y is mapped from top-left to pdf-lib bottom-left coordinates
+            const pdfX = (edit.x / 100) * width;
+            const pdfY = height - (edit.y / 100) * height;
+
+            // Convert hex color to normalized RGB fractions
+            const hex = edit.color.replace("#", "");
+            const r = parseInt(hex.substring(0, 2), 16) / 255 || 0;
+            const g = parseInt(hex.substring(2, 4), 16) / 255 || 0;
+            const b = parseInt(hex.substring(4, 6), 16) / 255 || 0;
+
+            if (edit.whiteout) {
+              const textWidth = helveticaFont.widthOfTextAtSize(edit.text, edit.size);
+              const textHeight = edit.size;
+              
+              // Draw solid white masking rectangle to hide original content
+              page.drawRectangle({
+                x: pdfX - 2,
+                y: pdfY - 2,
+                width: textWidth + 6,
+                height: textHeight + 4,
+                color: rgb(1, 1, 1),
+              });
+            }
+
+            page.drawText(edit.text, {
+              x: pdfX,
+              y: pdfY,
+              size: edit.size,
+              font: helveticaFont,
+              color: rgb(r, g, b),
+            });
+          }
+        }
+
+        const pdfBytes = await pdfDoc.save();
+        const blob = new Blob([pdfBytes] as any, { type: "application/pdf" });
+        setDownloadUrl(URL.createObjectURL(blob));
+        setOutputName(`medianinja-edited-${mainFile.file.name}`);
+      }
+
       setProgress(100);
       setStatus("success");
     } catch (err) {
@@ -599,6 +675,7 @@ export default function PdfProcessor() {
             { id: "compress", icon: CompressIcon, labelKey: "pdf_tab_compress" },
             { id: "rotate", icon: RotateIcon, labelKey: "pdf_tab_rotate" },
             { id: "watermark", icon: WatermarkIcon, labelKey: "pdf_tab_watermark" },
+            { id: "edit", icon: EditIcon, labelKey: "pdf_tab_edit" },
           ] as const
         ).map((tab) => {
           const Icon = tab.icon;
@@ -708,80 +785,93 @@ export default function PdfProcessor() {
               </div>
             </div>
 
-            {/* List of files with drag-free reordering */}
-            <div className="space-y-2 max-h-[450px] overflow-y-auto pr-1">
-              {files.map((queued, idx) => (
-                <div
-                  key={queued.id}
-                  className="flex items-center justify-between rounded-lg border border-white/5 bg-neutral-950/40 p-3 hover:border-white/10 transition-all"
-                >
-                  <div className="flex flex-col gap-1 pr-4 min-w-0">
-                    <span className="text-sm font-medium text-neutral-200 truncate block">
-                      {queued.file.name}
-                    </span>
-                    <span className="text-xs text-neutral-500 flex items-center gap-2">
-                      <span>{formatBytes(queued.file.size)}</span>
-                      {queued.pageCount !== undefined && (
-                        <>
-                          <span className="text-neutral-700">•</span>
-                          <span>{queued.pageCount} trang</span>
-                        </>
-                      )}
-                    </span>
-                  </div>
+            {/* List of files with drag-free reordering or Interactive Editor */}
+            {activeTab === "edit" ? (
+              files.length > 0 && (
+                <PdfInteractiveEditor
+                  pdfjs={pdfjs}
+                  file={files[0].file}
+                  textEdits={textEdits}
+                  setTextEdits={setTextEdits}
+                  selectedEditId={selectedEditId}
+                  setSelectedEditId={setSelectedEditId}
+                />
+              )
+            ) : (
+              <div className="space-y-2 max-h-[450px] overflow-y-auto pr-1">
+                {files.map((queued, idx) => (
+                  <div
+                    key={queued.id}
+                    className="flex items-center justify-between rounded-lg border border-white/5 bg-neutral-950/40 p-3 hover:border-white/10 transition-all"
+                  >
+                    <div className="flex flex-col gap-1 pr-4 min-w-0">
+                      <span className="text-sm font-medium text-neutral-200 truncate block">
+                        {queued.file.name}
+                      </span>
+                      <span className="text-xs text-neutral-500 flex items-center gap-2">
+                        <span>{formatBytes(queued.file.size)}</span>
+                        {queued.pageCount !== undefined && (
+                          <>
+                            <span className="text-neutral-700">•</span>
+                            <span>{queued.pageCount} trang</span>
+                          </>
+                        )}
+                      </span>
+                    </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    {/* Reordering Controls */}
-                    {allowsMultiple && (
-                      <div className="flex flex-col sm:flex-row gap-1">
+                    <div className="flex items-center gap-2 shrink-0">
+                      {/* Reordering Controls */}
+                      {allowsMultiple && (
+                        <div className="flex flex-col sm:flex-row gap-1">
+                          <button
+                            onClick={() => moveFile(idx, "up")}
+                            disabled={idx === 0}
+                            className="p-1 rounded text-neutral-400 hover:text-white hover:bg-neutral-800/60 disabled:opacity-30 disabled:hover:bg-transparent"
+                            type="button"
+                          >
+                            <ArrowUpIcon />
+                          </button>
+                          <button
+                            onClick={() => moveFile(idx, "down")}
+                            disabled={idx === files.length - 1}
+                            className="p-1 rounded text-neutral-400 hover:text-white hover:bg-neutral-800/60 disabled:opacity-30 disabled:hover:bg-transparent"
+                            type="button"
+                          >
+                            <ArrowDownIcon />
+                          </button>
+                        </div>
+                      )}
+                      
+                      {/* OCR for PDF or Image */}
+                      {(queued.file.type === "application/pdf" ||
+                        queued.file.name.toLowerCase().endsWith(".pdf") ||
+                        queued.file.type.startsWith("image/")) && (
                         <button
-                          onClick={() => moveFile(idx, "up")}
-                          disabled={idx === 0}
-                          className="p-1 rounded text-neutral-400 hover:text-white hover:bg-neutral-800/60 disabled:opacity-30 disabled:hover:bg-transparent"
+                          onClick={() => {
+                            setSharedFile(queued.file);
+                            router.push("/ocr-extractor");
+                          }}
+                          className="p-1.5 px-2.5 rounded-lg border border-cyan-500/30 bg-neutral-900/60 text-[10px] font-semibold text-cyan-400 hover:bg-cyan-500/10 hover:text-white transition-all cursor-pointer"
+                          title="Extract text from this file using OCR"
                           type="button"
                         >
-                          <ArrowUpIcon />
+                          🔍 OCR
                         </button>
-                        <button
-                          onClick={() => moveFile(idx, "down")}
-                          disabled={idx === files.length - 1}
-                          className="p-1 rounded text-neutral-400 hover:text-white hover:bg-neutral-800/60 disabled:opacity-30 disabled:hover:bg-transparent"
-                          type="button"
-                        >
-                          <ArrowDownIcon />
-                        </button>
-                      </div>
-                    )}
-                    
-                    {/* OCR for PDF or Image */}
-                    {(queued.file.type === "application/pdf" ||
-                      queued.file.name.toLowerCase().endsWith(".pdf") ||
-                      queued.file.type.startsWith("image/")) && (
+                      )}
+
+                      {/* Remove file */}
                       <button
-                        onClick={() => {
-                          setSharedFile(queued.file);
-                          router.push("/ocr-extractor");
-                        }}
-                        className="p-1.5 px-2.5 rounded-lg border border-cyan-500/30 bg-neutral-900/60 text-[10px] font-semibold text-cyan-400 hover:bg-cyan-500/10 hover:text-white transition-all cursor-pointer"
-                        title="Extract text from this file using OCR"
+                        onClick={() => removeFile(queued.id)}
+                        className="p-1.5 rounded-lg border border-white/5 bg-neutral-900/60 text-neutral-400 hover:text-red-400 hover:bg-red-950/20 transition-all cursor-pointer"
                         type="button"
                       >
-                        🔍 OCR
+                        <TrashIcon />
                       </button>
-                    )}
-
-                    {/* Remove file */}
-                    <button
-                      onClick={() => removeFile(queued.id)}
-                      className="p-1.5 rounded-lg border border-white/5 bg-neutral-900/60 text-neutral-400 hover:text-red-400 hover:bg-red-950/20 transition-all cursor-pointer"
-                      type="button"
-                    >
-                      <TrashIcon />
-                    </button>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
 
             {/* Results Actions */}
             {status === "success" && downloadUrl && (
@@ -958,6 +1048,112 @@ export default function PdfProcessor() {
               </div>
             )}
 
+            {activeTab === "edit" && (
+              <div className="space-y-4">
+                {selectedEditId ? (
+                  <>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-neutral-300 block">
+                        {t("pdf_edit_label_text") || "Text Content"}
+                      </label>
+                      <input
+                        type="text"
+                        value={textEdits.find((e) => e.id === selectedEditId)?.text || ""}
+                        onChange={(e) => {
+                          const nextText = e.target.value;
+                          setTextEdits((prev) =>
+                            prev.map((item) =>
+                              item.id === selectedEditId ? { ...item, text: nextText } : item
+                            )
+                          );
+                        }}
+                        className="w-full px-3 py-2 text-sm text-neutral-200 bg-neutral-950 border border-white/10 rounded-lg focus:border-cyan-400 outline-none transition"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-neutral-300 block">
+                          {t("pdf_edit_label_size") || "Font Size"}
+                        </label>
+                        <input
+                          type="number"
+                          min="8"
+                          max="72"
+                          value={textEdits.find((e) => e.id === selectedEditId)?.size || 14}
+                          onChange={(e) => {
+                            const nextSize = Number(e.target.value);
+                            setTextEdits((prev) =>
+                              prev.map((item) =>
+                                item.id === selectedEditId ? { ...item, size: nextSize } : item
+                              )
+                            );
+                          }}
+                          className="w-full px-3 py-1.5 text-sm text-neutral-200 bg-neutral-950 border border-white/10 rounded-lg focus:border-cyan-400 outline-none transition"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-neutral-300 block">
+                          {t("pdf_edit_label_color") || "Text Color"}
+                        </label>
+                        <div className="flex gap-2 items-center">
+                          <input
+                            type="color"
+                            value={textEdits.find((e) => e.id === selectedEditId)?.color || "#000000"}
+                            onChange={(e) => {
+                              const nextColor = e.target.value;
+                              setTextEdits((prev) =>
+                                prev.map((item) =>
+                                  item.id === selectedEditId ? { ...item, color: nextColor } : item
+                                )
+                              );
+                            }}
+                            className="w-8 h-8 rounded border border-white/10 bg-transparent cursor-pointer"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 px-1 py-2">
+                      <input
+                        type="checkbox"
+                        id="whiteout-checkbox"
+                        checked={textEdits.find((e) => e.id === selectedEditId)?.whiteout || false}
+                        onChange={(e) => {
+                          const nextWhiteout = e.target.checked;
+                          setTextEdits((prev) =>
+                            prev.map((item) =>
+                              item.id === selectedEditId ? { ...item, whiteout: nextWhiteout } : item
+                            )
+                          );
+                        }}
+                        className="rounded text-cyan-400 focus:ring-0 focus:ring-offset-0 bg-neutral-950 border-white/10 cursor-pointer"
+                      />
+                      <label htmlFor="whiteout-checkbox" className="text-xs font-medium text-neutral-300 cursor-pointer select-none">
+                        {t("pdf_edit_label_whiteout") || "Whiteout Background"}
+                      </label>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTextEdits((prev) => prev.filter((item) => item.id !== selectedEditId));
+                        setSelectedEditId(null);
+                      }}
+                      className="w-full inline-flex justify-center items-center gap-1.5 rounded-lg border border-red-500/20 bg-red-950/15 py-2 text-xs font-semibold text-red-400 hover:bg-red-950/30 transition cursor-pointer"
+                    >
+                      <TrashIcon />
+                      {t("pdf_edit_btn_delete") || "Delete Box"}
+                    </button>
+                  </>
+                ) : (
+                  <p className="text-xs text-neutral-500 italic text-center py-4">
+                    {t("pdf_edit_no_text") || "No text selected. Click on the preview to add text."}
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Execute processing Button */}
             <div className="pt-2 border-t border-white/5">
               <button
@@ -989,6 +1185,8 @@ export default function PdfProcessor() {
                         ? "pdf_btn_compress"
                         : activeTab === "rotate"
                         ? "pdf_btn_rotate"
+                        : activeTab === "edit"
+                        ? "pdf_btn_edit"
                         : "pdf_btn_watermark"
                     )}
                   </>
@@ -1135,6 +1333,306 @@ function PdfPreviewer({ pdfjs, url }: { pdfjs: any; url: string }) {
 
       <div className="w-full max-w-full overflow-auto flex justify-center bg-neutral-900/50 p-2 rounded border border-white/5 max-h-[500px]">
         <canvas ref={canvasRef} className="max-w-full h-auto shadow-2xl bg-white rounded border border-neutral-700" />
+      </div>
+    </div>
+  );
+}
+
+// ── PdfInteractiveEditor Helper Component ──
+function PdfInteractiveEditor({
+  pdfjs,
+  file,
+  textEdits,
+  setTextEdits,
+  selectedEditId,
+  setSelectedEditId,
+}: {
+  pdfjs: any;
+  file: File;
+  textEdits: PdfTextEdit[];
+  setTextEdits: React.Dispatch<React.SetStateAction<PdfTextEdit[]>>;
+  selectedEditId: string | null;
+  setSelectedEditId: (id: string | null) => void;
+}) {
+  const { t } = useLanguage();
+  const [pdfDoc, setPdfDoc] = useState<any>(null);
+  const [pageNum, setPageNum] = useState(1);
+  const [numPages, setNumPages] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const renderTaskRef = useRef<any>(null);
+  const [displayScale, setDisplayScale] = useState(1.5);
+
+  const updateScale = useCallback(() => {
+    if (canvasRef.current) {
+      const scale = (canvasRef.current.clientWidth / canvasRef.current.width) * 1.5;
+      setDisplayScale(scale);
+    }
+  }, []);
+
+  // Load PDF document from File object
+  useEffect(() => {
+    if (!pdfjs || !file) return;
+    
+    let url = "";
+    try {
+      url = URL.createObjectURL(file);
+      setLoading(true);
+      setPageNum(1);
+      
+      const loadingTask = pdfjs.getDocument(url);
+      loadingTask.promise.then(
+        (pdf: any) => {
+          setPdfDoc(pdf);
+          setNumPages(pdf.numPages);
+          setLoading(false);
+        },
+        (err: any) => {
+          console.error("Error loading PDF for editing:", err);
+          setLoading(false);
+        }
+      );
+    } catch (err) {
+      console.error(err);
+      setLoading(false);
+    }
+
+    return () => {
+      if (url) {
+        URL.revokeObjectURL(url);
+      }
+    };
+  }, [pdfjs, file]);
+
+  // Render page when pdfDoc or pageNum changes
+  useEffect(() => {
+    if (!pdfDoc || !canvasRef.current) return;
+
+    if (renderTaskRef.current) {
+      renderTaskRef.current.cancel();
+    }
+
+    pdfDoc.getPage(pageNum).then((page: any) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const context = canvas.getContext("2d");
+      if (!context) return;
+
+      const viewport = page.getViewport({ scale: 1.5 });
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+
+      const renderContext = {
+        canvasContext: context,
+        viewport: viewport,
+      };
+
+      const renderTask = page.render(renderContext);
+      renderTaskRef.current = renderTask;
+
+      renderTask.promise.then(
+        () => {
+          renderTaskRef.current = null;
+          updateScale();
+        },
+        (err: any) => {
+          if (err.name !== "RenderingCancelledException") {
+            console.error("Render error:", err);
+          }
+        }
+      );
+    });
+
+    return () => {
+      if (renderTaskRef.current) {
+        renderTaskRef.current.cancel();
+      }
+    };
+  }, [pdfDoc, pageNum, updateScale]);
+
+  useEffect(() => {
+    window.addEventListener("resize", updateScale);
+    const timer = setTimeout(updateScale, 200);
+    return () => {
+      window.removeEventListener("resize", updateScale);
+      clearTimeout(timer);
+    };
+  }, [pdfDoc, pageNum, updateScale]);
+
+  const handleCanvasClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!containerRef.current) return;
+    
+    // Check if clicked directly on the overlay container (and not on a text box)
+    if (e.target !== e.currentTarget && !(e.target as HTMLElement).classList.contains("click-overlay")) {
+      return;
+    }
+
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+    const newEdit: PdfTextEdit = {
+      id: `edit-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      page: pageNum,
+      text: "Text",
+      x: Math.round(x * 100) / 100,
+      y: Math.round(y * 100) / 100,
+      size: 14,
+      color: "#000000",
+      whiteout: true, // Default to true because user wants to edit text/cover it up!
+    };
+
+    setTextEdits((prev) => [...prev, newEdit]);
+    setSelectedEditId(newEdit.id);
+  };
+
+  const handleMouseDown = (e: React.MouseEvent, editId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedEditId(editId);
+
+    const edit = textEdits.find((t) => t.id === editId);
+    if (!edit) return;
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startPercentX = edit.x;
+    const startPercentY = edit.y;
+
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const widthPx = rect.width;
+    const heightPx = rect.height;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const deltaY = moveEvent.clientY - startY;
+
+      const deltaPercentX = (deltaX / widthPx) * 100;
+      const deltaPercentY = (deltaY / heightPx) * 100;
+
+      const newX = Math.max(0, Math.min(100, startPercentX + deltaPercentX));
+      const newY = Math.max(0, Math.min(100, startPercentY + deltaPercentY));
+
+      setTextEdits((prev) =>
+        prev.map((t) =>
+          t.id === editId
+            ? {
+                ...t,
+                x: Math.round(newX * 100) / 100,
+                y: Math.round(newY * 100) / 100,
+              }
+            : t
+        )
+      );
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  };
+
+  // Filter text edits for current page
+  const pageEdits = useMemo(() => {
+    return textEdits.filter((edit) => edit.page === pageNum);
+  }, [textEdits, pageNum]);
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center text-neutral-400 text-sm">
+        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-cyan-400" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+        </svg>
+        <span>{t("pdf_preview_loading")}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-4 bg-neutral-950/80 p-4 rounded-lg border border-white/5 w-full">
+      <div className="flex items-center gap-3 text-sm text-neutral-400">
+        <button
+          onClick={() => {
+            setPageNum((prev) => Math.max(1, prev - 1));
+            setSelectedEditId(null);
+          }}
+          disabled={pageNum <= 1}
+          className="px-2.5 py-1 rounded bg-neutral-900 border border-white/10 hover:bg-neutral-800 hover:text-white disabled:opacity-30 disabled:hover:bg-neutral-900 disabled:hover:text-neutral-400 cursor-pointer transition text-xs font-semibold"
+          type="button"
+        >
+          {t("pdf_preview_prev")}
+        </button>
+        <span>
+          {t("pdf_preview_page", { page: pageNum, total: numPages })}
+        </span>
+        <button
+          onClick={() => {
+            setPageNum((prev) => Math.min(numPages, prev + 1));
+            setSelectedEditId(null);
+          }}
+          disabled={pageNum >= numPages}
+          className="px-2.5 py-1 rounded bg-neutral-900 border border-white/10 hover:bg-neutral-800 hover:text-white disabled:opacity-30 disabled:hover:bg-neutral-900 disabled:hover:text-neutral-400 cursor-pointer transition text-xs font-semibold"
+          type="button"
+        >
+          {t("pdf_preview_next")}
+        </button>
+      </div>
+
+      <div className="text-xs text-neutral-400 text-center max-w-md">
+        {t("pdf_edit_instructions") || "Click anywhere on the preview to add a text box. Drag to move, and edit properties in the sidebar."}
+      </div>
+
+      <div className="w-full max-w-full overflow-auto flex justify-center bg-neutral-900/50 p-2 rounded border border-white/5">
+        <div
+          ref={containerRef}
+          onClick={handleCanvasClick}
+          className="relative select-none bg-white rounded border border-neutral-700 cursor-crosshair inline-block"
+        >
+          <canvas
+            ref={canvasRef}
+            className="max-w-full h-auto block pointer-events-none"
+          />
+          
+          <div className="absolute inset-0 click-overlay" />
+
+          {pageEdits.map((edit) => {
+            const isSelected = edit.id === selectedEditId;
+            return (
+              <div
+                key={edit.id}
+                onMouseDown={(e) => handleMouseDown(e, edit.id)}
+                style={{
+                  position: "absolute",
+                  left: `${edit.x}%`,
+                  top: `${edit.y}%`,
+                  transform: "translateY(-100%)",
+                  fontSize: `${edit.size * displayScale}px`,
+                  color: edit.color,
+                  backgroundColor: edit.whiteout ? "#ffffff" : "transparent",
+                  padding: `${2 * displayScale}px ${4 * displayScale}px`,
+                  borderRadius: `${2 * displayScale}px`,
+                  lineHeight: 1,
+                  fontFamily: "Helvetica, Arial, sans-serif",
+                }}
+                className={[
+                  "cursor-move border whitespace-nowrap select-none",
+                  isSelected
+                    ? "border-cyan-400 border-dashed shadow-[0_0_8px_rgba(34,211,238,0.5)] z-20 font-semibold"
+                    : "border-transparent z-10",
+                ].join(" ")}
+              >
+                {edit.text || " "}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

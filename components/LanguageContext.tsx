@@ -243,6 +243,13 @@ const viTranslations: Translations = {
   "vid_config_denoise": "Lọc tiếng ồn (Denoise)",
   "vid_config_denoise_desc": "Giảm tạp âm rè, gió, còi xe...",
   "vid_config_fast_cut_disabled": "Cắt nhanh bị tắt do bạn bật bộ lọc (Crop/Denoise/Blur)",
+  "vid_config_speed": "Tốc độ phát",
+  "vid_config_speed_slow": "Chậm",
+  "vid_config_speed_normal": "Bình thường",
+  "vid_config_speed_fast": "Nhanh",
+  "vid_status_merging": "Đang ghép video...",
+  "vid_btn_merge_all": "Ghép tất cả",
+  "vid_merged_success": "Ghép video thành công!",
 
   // Redaction / Area Blur
   "vid_blur_title": "Che mờ vùng nhạy cảm",
@@ -346,6 +353,15 @@ const viTranslations: Translations = {
   "pdf_preview_prev": "Trước",
   "pdf_preview_next": "Sau",
   "pdf_preview_page": "Trang {page} / {total}",
+  "pdf_tab_edit": "Chỉnh sửa PDF",
+  "pdf_btn_edit": "Lưu chỉnh sửa & tải về",
+  "pdf_edit_instructions": "Nhấp chuột vào vị trí bất kỳ trên bản xem trước trang để đặt ô chữ mới. Chọn ô chữ để chỉnh sửa hoặc xóa.",
+  "pdf_edit_no_text": "Chưa chọn ô chữ nào. Nhấp vào trang để thêm chữ.",
+  "pdf_edit_label_text": "Nội dung văn bản",
+  "pdf_edit_label_size": "Cỡ chữ",
+  "pdf_edit_label_color": "Màu sắc",
+  "pdf_edit_label_whiteout": "Che nền trắng (Whiteout)",
+  "pdf_edit_btn_delete": "Xóa ô chữ",
 
   // OCR Extractor
   "tool_ocr_title": "Trích xuất chữ",
@@ -678,6 +694,13 @@ const enTranslations: Translations = {
   "vid_config_denoise": "Denoise Audio",
   "vid_config_denoise_desc": "Reduce background noise (wind, hum, hiss)",
   "vid_config_fast_cut_disabled": "Fast Cut disabled due to active filters (Crop/Denoise/Blur)",
+  "vid_config_speed": "Playback Speed",
+  "vid_config_speed_slow": "Slow",
+  "vid_config_speed_normal": "Normal",
+  "vid_config_speed_fast": "Fast",
+  "vid_status_merging": "Merging videos...",
+  "vid_btn_merge_all": "Merge All",
+  "vid_merged_success": "Videos merged successfully!",
 
   // Redaction / Area Blur
   "vid_blur_title": "Video Redaction / Blur",
@@ -781,6 +804,15 @@ const enTranslations: Translations = {
   "pdf_preview_prev": "Prev",
   "pdf_preview_next": "Next",
   "pdf_preview_page": "Page {page} / {total}",
+  "pdf_tab_edit": "Edit PDF",
+  "pdf_btn_edit": "Save Edits & Download",
+  "pdf_edit_instructions": "Click anywhere on the preview to add a text box. Drag to move, and edit properties in the sidebar.",
+  "pdf_edit_no_text": "No text box selected. Click on the preview to add text.",
+  "pdf_edit_label_text": "Text Content",
+  "pdf_edit_label_size": "Font Size",
+  "pdf_edit_label_color": "Text Color",
+  "pdf_edit_label_whiteout": "Whiteout Background",
+  "pdf_edit_btn_delete": "Delete Box",
 
   // OCR Extractor
   "tool_ocr_title": "Extract Text",

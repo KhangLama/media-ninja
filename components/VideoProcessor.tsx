@@ -44,6 +44,7 @@ type ProcessedVideo = {
   aspectRatio?: "original" | "9:16-center" | "9:16-left" | "9:16-right" | "1:1";
   denoiseAudio?: boolean;
   blurBoxes?: BlurBox[];
+  speedFactor?: number;
 };
 
 const ACCEPTED_VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm"]);
@@ -64,6 +65,9 @@ export default function VideoProcessor() {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [isProcessingQueue, setIsProcessingQueue] = useState(false);
   const [isZipping, setIsZipping] = useState(false);
+  const [isMerging, setIsMerging] = useState(false);
+  const [mergedUrl, setMergedUrl] = useState<string | null>(null);
+  const [mergedName, setMergedName] = useState<string>("");
 
   // FFmpeg status
   const [status, setStatus] = useState<ProcessorStatus>("idle");
@@ -408,6 +412,7 @@ export default function VideoProcessor() {
           aspectRatio: "original",
           denoiseAudio: false,
           blurBoxes: [],
+          speedFactor: 1.0,
         });
       }
 
@@ -582,7 +587,7 @@ export default function VideoProcessor() {
           await ffmpeg.writeFile(inputName, await fetchFile(video.originalFile));
 
           const isSameExt = ext === video.outputFormat;
-          const hasFilters = (video.aspectRatio && video.aspectRatio !== "original") || video.denoiseAudio || (video.blurBoxes && video.blurBoxes.length > 0);
+          const hasFilters = (video.aspectRatio && video.aspectRatio !== "original") || video.denoiseAudio || (video.blurBoxes && video.blurBoxes.length > 0) || (video.speedFactor !== undefined && video.speedFactor !== 1.0);
           const isFastCutActive = isSameExt && video.useFastCut && !hasFilters;
 
           const args = buildFFmpegArgs({
@@ -596,6 +601,7 @@ export default function VideoProcessor() {
             aspectRatio: video.aspectRatio,
             denoiseAudio: video.denoiseAudio,
             blurBoxes: video.blurBoxes,
+            speedFactor: video.speedFactor,
           });
 
           const exitCode = await ffmpeg.exec(args);
@@ -657,6 +663,108 @@ export default function VideoProcessor() {
       setIsProcessingQueue(false);
     }
   }, [videos, loadFFmpeg]);
+
+  const mergeVideos = useCallback(async () => {
+    if (videos.length < 2) return;
+    setIsMerging(true);
+    setError(null);
+    setMergedUrl(null);
+    setMergedName("");
+
+    try {
+      const ffmpeg = await loadFFmpeg();
+
+      // Determine dimensions based on the active preview video or first video in queue
+      let outW = 1280;
+      let outH = 720;
+      const videoEl = videoRef.current;
+      if (videoEl && videoEl.videoHeight > videoEl.videoWidth) {
+        outW = 720;
+        outH = 1280;
+      }
+
+      // Write files and prepare inputs
+      const inputArgs: string[] = [];
+      let filterComplex = "";
+      
+      for (let i = 0; i < videos.length; i++) {
+        const v = videos[i];
+        const ext = extensionFromFile(v.originalFile);
+        const inputName = `merge_input_${i}.${ext}`;
+        
+        await ffmpeg.writeFile(inputName, await fetchFile(v.originalFile));
+        
+        // Input trim using -ss and -t (or -to)
+        const start = v.selection[0];
+        const end = v.selection[1] || v.duration;
+        
+        inputArgs.push("-ss", start.toFixed(2));
+        if (end > start) {
+          inputArgs.push("-t", (end - start).toFixed(2));
+        }
+        inputArgs.push("-i", inputName);
+
+        // Filter: Scale, Pad, SetSAR, SetPTS, Resample Audio, SetPTS Audio
+        const speed = v.speedFactor || 1.0;
+        filterComplex += `[${i}:v]scale=${outW}:${outH}:force_original_aspect_ratio=decrease,pad=${outW}:${outH}:(${outW}-iw)/2:(${outH}-ih)/2,setsar=1,setpts=PTS/${speed}[v${i}]; `;
+        
+        if (v.muteAudio) {
+          filterComplex += `[${i}:a]volume=0,atempo=${speed},aresample=44100[a${i}]; `;
+        } else {
+          filterComplex += `[${i}:a]atempo=${speed},aresample=44100[a${i}]; `;
+        }
+      }
+
+      // Concat all video/audio streams
+      for (let i = 0; i < videos.length; i++) {
+        filterComplex += `[v${i}][a${i}]`;
+      }
+      filterComplex += `concat=n=${videos.length}:v=1:a=1[outv][outa]`;
+
+      const outputName = `merged_video_${Date.now()}.mp4`;
+      
+      const args = [
+        ...inputArgs,
+        "-filter_complex", filterComplex,
+        "-map", "[outv]",
+        "-map", "[outa]",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+        "-c:a", "aac", "-b:a", "128k",
+        "-f", "mp4",
+        outputName
+      ];
+
+      const exitCode = await ffmpeg.exec(args);
+      if (exitCode !== 0) {
+        throw new Error(`FFmpeg merger exited with code ${exitCode}`);
+      }
+
+      const outputData = await ffmpeg.readFile(outputName);
+      const outputBytes = typeof outputData === "string" ? new TextEncoder().encode(outputData) : outputData;
+      const blob = new Blob([toArrayBuffer(outputBytes)], { type: "video/mp4" });
+      
+      const downloadUrl = URL.createObjectURL(blob);
+      trackUrl(downloadUrl);
+      
+      setMergedUrl(downloadUrl);
+      setMergedName(`merged_video_${Date.now()}.mp4`);
+      
+      // Clean up files in FFmpeg filesystem
+      for (let i = 0; i < videos.length; i++) {
+        const v = videos[i];
+        const ext = extensionFromFile(v.originalFile);
+        await ffmpeg.deleteFile(`merge_input_${i}.${ext}`);
+      }
+      await ffmpeg.deleteFile(outputName);
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message || "Failed to merge videos.");
+    } finally {
+      setIsMerging(false);
+    }
+  }, [videos, loadFFmpeg]);
+
+
 
   const downloadAllZip = useCallback(async () => {
     const doneVideos = videos.filter((v) => v.status === "done" && v.outputFile);
@@ -745,6 +853,41 @@ export default function VideoProcessor() {
         </div>
       )}
 
+      {/* Merged Video Output Success Banner */}
+      {mergedUrl && (
+        <div className="mb-4 rounded-xl border border-emerald-500/20 bg-emerald-950/60 p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h4 className="text-sm font-bold text-emerald-300">
+                {t("vid_merge_success") || "All videos merged successfully!"}
+              </h4>
+              <p className="text-xs text-neutral-400 mt-1 truncate max-w-sm sm:max-w-md">
+                {mergedName} ({videos.length} videos)
+              </p>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <a
+                href={mergedUrl}
+                download={mergedName}
+                className="inline-flex items-center gap-2 rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-neutral-950 shadow transition hover:bg-cyan-300 cursor-pointer"
+              >
+                {t("pdf_btn_download") || "Download"}
+              </a>
+              <button
+                onClick={() => {
+                  setMergedUrl(null);
+                  setMergedName("");
+                }}
+                className="inline-flex items-center justify-center p-2 rounded-lg border border-white/10 bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-white transition cursor-pointer"
+                type="button"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Global Queue Actions */}
       {videos.length > 0 && (
         <div className="mb-4 flex flex-col gap-3 rounded-lg border border-white/10 bg-neutral-950 p-4 sm:flex-row sm:items-center sm:justify-between shadow-inner">
@@ -757,7 +900,7 @@ export default function VideoProcessor() {
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
-              disabled={isProcessingQueue || videos.filter((v) => v.status !== "done").length === 0}
+              disabled={isProcessingQueue || isMerging || videos.filter((v) => v.status !== "done").length === 0}
               onClick={processQueue}
               className="flex items-center gap-2 rounded-md bg-cyan-300 px-4 py-2 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
             >
@@ -770,9 +913,26 @@ export default function VideoProcessor() {
                 <span>{t("vid_btn_start")}</span>
               )}
             </button>
+            {videos.length >= 2 && (
+              <button
+                type="button"
+                disabled={isProcessingQueue || isMerging}
+                onClick={mergeVideos}
+                className="flex items-center gap-2 rounded-md border border-cyan-500/30 bg-neutral-900/60 px-4 py-2 text-sm font-semibold text-cyan-400 transition hover:bg-cyan-500/10 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+              >
+                {isMerging ? (
+                  <>
+                    <span className="h-3 w-3 animate-spin rounded-full border border-cyan-400 border-t-transparent inline-block" />
+                    <span>{t("vid_status_merging") || "Merging..."}</span>
+                  </>
+                ) : (
+                  <span>{t("vid_btn_merge_all") || "Merge All"}</span>
+                )}
+              </button>
+            )}
             <button
               type="button"
-              disabled={isZipping || videos.filter((v) => v.status === "done").length === 0}
+              disabled={isZipping || isMerging || videos.filter((v) => v.status === "done").length === 0}
               onClick={downloadAllZip}
               className="rounded-md border border-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:border-cyan-300/70 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
             >
@@ -1113,6 +1273,29 @@ export default function VideoProcessor() {
                         <option value="webm">WebM</option>
                         <option value="gif">GIF {language === "vi" ? "(Tạo ảnh động)" : "(Animated)"}</option>
                         <option value="mp3">MP3 {language === "vi" ? "(Chỉ lấy âm thanh)" : "(Audio only)"}</option>
+                      </select>
+                    </div>
+
+                    <div className="mt-4">
+                      <label className="text-xs font-medium text-neutral-300" htmlFor="speed-factor">
+                        {t("vid_config_speed") || "Playback Speed"}
+                      </label>
+                      <select
+                        className="mt-2 w-full rounded-md border border-white/10 bg-neutral-950 px-3 py-2 text-xs text-white outline-none focus:border-cyan-300"
+                        id="speed-factor"
+                        disabled={isProcessingQueue}
+                        onChange={(event) => {
+                          const nextSpeed = parseFloat(event.target.value);
+                          updateActiveVideo({ speedFactor: nextSpeed });
+                        }}
+                        value={activeVideo.speedFactor ?? 1.0}
+                      >
+                        <option value="0.5">0.5x ({t("vid_config_speed_slow") || "Slow"})</option>
+                        <option value="0.75">0.75x</option>
+                        <option value="1.0">1.0x ({t("vid_config_speed_normal") || "Normal"})</option>
+                        <option value="1.25">1.25x</option>
+                        <option value="1.5">1.5x</option>
+                        <option value="2.0">2.0x ({t("vid_config_speed_fast") || "Fast"})</option>
                       </select>
                     </div>
 
@@ -1661,6 +1844,7 @@ function buildFFmpegArgs({
   aspectRatio = "original",
   denoiseAudio = false,
   blurBoxes = [],
+  speedFactor = 1.0,
 }: {
   inputName: string;
   muteAudio: boolean;
@@ -1672,10 +1856,11 @@ function buildFFmpegArgs({
   aspectRatio?: string;
   denoiseAudio?: boolean;
   blurBoxes?: BlurBox[];
+  speedFactor?: number;
 }) {
   const args = ["-ss", startTime.toFixed(2), "-i", inputName, "-t", (endTime - startTime).toFixed(2)];
 
-  const hasFilters = aspectRatio !== "original" || denoiseAudio || blurBoxes.length > 0;
+  const hasFilters = aspectRatio !== "original" || denoiseAudio || blurBoxes.length > 0 || speedFactor !== 1.0;
   const isFastCutActive = useFastCut && !hasFilters;
 
   if (isFastCutActive) {
@@ -1693,23 +1878,45 @@ function buildFFmpegArgs({
   }
 
   if (outputFormat === "mp3") {
+    const audioFilters: string[] = [];
     if (denoiseAudio) {
-      args.push("-af", "afftdn");
+      audioFilters.push("afftdn");
+    }
+    if (speedFactor !== 1.0) {
+      audioFilters.push(`atempo=${speedFactor}`);
+    }
+    if (audioFilters.length > 0) {
+      args.push("-af", audioFilters.join(","));
     }
     args.push("-vn", "-acodec", "libmp3lame", "-b:a", "192k", "-f", "mp3", outputName);
     return args;
   }
 
   const videoFilters = buildVideoFilters(aspectRatio, blurBoxes);
+  let filterComplexStr = "";
+  let finalVideoLabel = "[0:v]";
 
-  if (videoFilters && videoFilters.filter) {
+  if (videoFilters) {
+    filterComplexStr = videoFilters.filter;
+    finalVideoLabel = videoFilters.outputLabel;
+  }
+
+  if (speedFactor !== 1.0) {
+    const nextLabel = "[v_speed]";
+    if (filterComplexStr) {
+      filterComplexStr += `; ${finalVideoLabel}setpts=PTS/${speedFactor}${nextLabel}`;
+    } else {
+      filterComplexStr = `[0:v]setpts=PTS/${speedFactor}${nextLabel}`;
+    }
+    finalVideoLabel = nextLabel;
+  }
+
+  if (filterComplexStr) {
     if (outputFormat === "gif") {
-      let filterComplexStr = videoFilters.filter;
-      const finalLabel = videoFilters.outputLabel;
-      filterComplexStr += `; ${finalLabel}fps=15,scale=480:-1:flags=lanczos[gif_out]`;
+      filterComplexStr += `; ${finalVideoLabel}fps=15,scale=480:-1:flags=lanczos[gif_out]`;
       args.push("-filter_complex", filterComplexStr, "-map", "[gif_out]");
     } else {
-      args.push("-filter_complex", videoFilters.filter, "-map", videoFilters.outputLabel);
+      args.push("-filter_complex", filterComplexStr, "-map", finalVideoLabel);
       if (!muteAudio) {
         args.push("-map", "0:a?");
       }
@@ -1718,12 +1925,18 @@ function buildFFmpegArgs({
     args.push("-vf", "fps=15,scale=480:-1:flags=lanczos");
   }
 
-  // Audio filter: Denoise (ignore if muted or format is GIF)
-  if (!muteAudio && denoiseAudio && outputFormat !== "gif") {
-    // If we already have filter_complex, we cannot pass -af separately sometimes depending on FFmpeg version,
-    // but in modern FFmpeg we can pass -af along with -filter_complex, or apply it inside the filter graph.
-    // Specifying -af afftdn is standard and fully works.
-    args.push("-af", "afftdn");
+  // Audio filter: Denoise & Playback Speed (ignore if muted or format is GIF)
+  if (!muteAudio && outputFormat !== "gif") {
+    const audioFilters: string[] = [];
+    if (denoiseAudio) {
+      audioFilters.push("afftdn");
+    }
+    if (speedFactor !== 1.0) {
+      audioFilters.push(`atempo=${speedFactor}`);
+    }
+    if (audioFilters.length > 0) {
+      args.push("-af", audioFilters.join(","));
+    }
   }
 
   if (outputFormat === "gif") {
