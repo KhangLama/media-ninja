@@ -4,7 +4,6 @@ import React, { useEffect, useState } from "react";
 import { useLanguage } from "@/components/LanguageContext";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import Image from "next/image";
 
 /* ── PageShell ─────────────────────────────────────────────────────────── */
 export function PageShell({
@@ -76,12 +75,10 @@ function SiteHeader() {
                 boxShadow: "0 0 16px rgba(57,255,20,0.35)",
               }}
             >
-              <Image
+              <img
                 src="/icon-192.png"
                 alt="MediaNinja Logo"
-                width={32}
-                height={32}
-                className="object-cover"
+                className="w-full h-full object-cover"
               />
             </div>
             <span className="font-bold text-lg tracking-tight" style={{ color: "var(--text-primary)" }}>
@@ -200,12 +197,10 @@ function SiteFooter() {
               <div
                 className="w-6 h-6 rounded-md overflow-hidden flex items-center justify-center transition-all duration-300"
               >
-                <Image
+                <img
                   src="/icon-192.png"
                   alt="MediaNinja Logo"
-                  width={24}
-                  height={24}
-                  className="object-cover"
+                  className="w-full h-full object-cover"
                 />
               </div>
               <span className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>
