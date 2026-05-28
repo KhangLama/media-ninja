@@ -614,15 +614,15 @@ export default function PdfProcessor() {
             if (rot === 90) {
               pdfX = (edit.y / 100) * width;
               pdfY = (edit.x / 100) * height;
-              textRotation = -90;
+              textRotation = 90;
             } else if (rot === 180) {
               pdfX = width - (edit.x / 100) * width;
               pdfY = (edit.y / 100) * height;
-              textRotation = -180;
+              textRotation = 180;
             } else if (rot === 270) {
               pdfX = width - (edit.y / 100) * width;
               pdfY = height - (edit.x / 100) * height;
-              textRotation = -270;
+              textRotation = 270;
             } else {
               pdfX = (edit.x / 100) * width;
               pdfY = height - (edit.y / 100) * height;
