@@ -208,11 +208,19 @@ export default function PdfProcessor() {
     );
 
     setFiles((prev) => {
+      const filteredNewFiles = processedFiles.filter((newFile) => {
+        const isDuplicate = prev.some(
+          (item) => item.file.name === newFile.file.name && item.file.size === newFile.file.size
+        );
+        return !isDuplicate;
+      });
+
+      if (filteredNewFiles.length === 0) return prev;
+
       if (allowsMultiple) {
-        return [...prev, ...processedFiles];
+        return [...prev, ...filteredNewFiles];
       }
-      // If single file allowed, replace previous selection
-      return [processedFiles[0]];
+      return [filteredNewFiles[0]];
     });
 
     if (fileInputRef.current) {
@@ -226,7 +234,8 @@ export default function PdfProcessor() {
       void handleFilesSelect([sharedFile]);
       setTimeout(clearSharedFile, 100);
     }
-  }, [handleFilesSelect]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Remove individual file from list
   const removeFile = (id: string) => {

@@ -412,7 +412,21 @@ export default function VideoProcessor() {
       if (newProcessedVideos.length === 0) return;
 
       setVideos((current) => {
-        const next = [...current, ...newProcessedVideos];
+        const filteredNewVideos = newProcessedVideos.filter((newVid) => {
+          const isDuplicate = current.some(
+            (v) => v.originalFile.name === newVid.originalFile.name && v.originalFile.size === newVid.originalFile.size
+          );
+          if (isDuplicate) {
+            URL.revokeObjectURL(newVid.previewUrl);
+            createdUrlsRef.current.delete(newVid.previewUrl);
+            return false;
+          }
+          return true;
+        });
+
+        if (filteredNewVideos.length === 0) return current;
+
+        const next = [...current, ...filteredNewVideos];
         if (activeIndex === null) {
           setActiveIndex(current.length);
         }
@@ -432,7 +446,8 @@ export default function VideoProcessor() {
       void handleFiles([sharedFile]);
       setTimeout(clearSharedFile, 100);
     }
-  }, [handleFiles]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleLoadedMetadata = useCallback(() => {
     const videoElement = videoRef.current;

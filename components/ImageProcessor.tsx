@@ -170,12 +170,24 @@ export default function ImageProcessor() {
         })
       );
 
-      setItems((currentItems) => [...currentItems, ...newItems]);
-      setActiveEditId((currentId) => {
-        if (!currentId && newItems.length > 0) {
-          return newItems[0].id;
+      setItems((currentItems) => {
+        const filteredNewItems = newItems.filter((newItem) => {
+          const isDuplicate = currentItems.some(
+            (item) => item.originalFile.name === newItem.originalFile.name && item.originalFile.size === newItem.originalFile.size
+          );
+          if (isDuplicate) {
+            URL.revokeObjectURL(newItem.originalPreviewUrl);
+            objectUrlsRef.current.delete(newItem.originalPreviewUrl);
+            return false;
+          }
+          return true;
+        });
+
+        if (filteredNewItems.length > 0) {
+          setActiveEditId((currentId) => currentId || filteredNewItems[0].id);
         }
-        return currentId;
+
+        return [...currentItems, ...filteredNewItems];
       });
     },
     []
@@ -187,7 +199,8 @@ export default function ImageProcessor() {
       void processFiles([sharedFile]);
       setTimeout(clearSharedFile, 100);
     }
-  }, [processFiles]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const updateActiveConfig = useCallback((patch: Partial<ImageEditConfig>) => {
     if (activeEditId) {
