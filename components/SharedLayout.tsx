@@ -1,141 +1,324 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useLanguage } from "@/components/LanguageContext";
 import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
 
-/* ── PageShell: Wraps every page with LanguageProvider + consistent layout ── */
-
-export function PageShell({ children, maxWidth = "max-w-6xl" }: { children: React.ReactNode; maxWidth?: string }) {
+/* ── PageShell ─────────────────────────────────────────────────────────── */
+export function PageShell({
+  children,
+  maxWidth = "max-w-7xl",
+}: {
+  children: React.ReactNode;
+  maxWidth?: string;
+}) {
   return (
-    <main className="min-h-screen bg-neutral-950 text-neutral-50">
-      <div className={["mx-auto flex min-h-screen w-full flex-col px-4 py-6 sm:px-6 lg:px-8", maxWidth].join(" ")}>
-        <Header />
+    <div className="min-h-screen" style={{ backgroundColor: "var(--bg-base)", color: "var(--text-primary)" }}>
+      <SiteHeader />
+      <main className={`mx-auto w-full px-4 sm:px-6 lg:px-8 ${maxWidth}`}>
         {children}
-        <Footer />
-      </div>
-    </main>
+      </main>
+      <SiteFooter />
+      <PrivacyBadge />
+    </div>
   );
 }
 
-/* ── Breadcrumb ── */
-
+/* ── Breadcrumb ─────────────────────────────────────────────────────────── */
 export function Breadcrumb({ current }: { current: string }) {
   return (
     <nav aria-label="Breadcrumb" className="mb-6 mt-4">
-      <ol className="flex items-center gap-2 text-sm text-neutral-500">
+      <ol className="flex items-center gap-2 text-sm" style={{ color: "var(--text-muted)" }}>
         <li>
-          <Link href="/" className="text-neutral-400 transition hover:text-white">
+          <Link
+            href="/"
+            className="transition hover:text-white"
+            style={{ color: "var(--text-secondary)" }}
+          >
             MediaNinja
           </Link>
         </li>
-        <li aria-hidden="true" className="text-neutral-700">
-          /
+        <li aria-hidden="true" style={{ color: "var(--text-muted)" }}>/</li>
+        <li className="font-medium" style={{ color: "var(--accent-neon)" }}>
+          {current}
         </li>
-        <li className="text-cyan-300 font-medium">{current}</li>
       </ol>
     </nav>
   );
 }
 
-/* ── Header ── */
+/* ── Site Header (Glassmorphism Sticky Navbar) ──────────────────────────── */
+function SiteHeader() {
+  const [scrolled, setScrolled] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-function Header() {
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   return (
-    <header className="flex items-center justify-between border-b border-white/10 pb-5">
-      <Link className="text-base font-semibold text-white flex items-center gap-2" href="/">
-        <span>MediaNinja</span>
-      </Link>
-      <nav
-        aria-label="Primary navigation"
-        className="flex items-center gap-4 text-sm text-neutral-400"
-      >
-        <NavLinks />
-      </nav>
+    <header
+      className={`sticky top-0 z-50 transition-all duration-300 ${
+        scrolled ? "glass-dark shadow-lg shadow-black/30" : "bg-transparent"
+      }`}
+    >
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-16">
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-2.5 group flex-shrink-0">
+            <div
+              className="relative w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm transition-all duration-300 group-hover:scale-110"
+              style={{
+                background: "linear-gradient(135deg, var(--accent-neon), var(--accent-cyan))",
+                boxShadow: "0 0 16px rgba(57,255,20,0.35)",
+              }}
+            >
+              <span className="text-black">N</span>
+            </div>
+            <span className="font-bold text-lg tracking-tight" style={{ color: "var(--text-primary)" }}>
+              Media<span style={{ color: "var(--accent-neon)" }}>Ninja</span>
+            </span>
+          </Link>
+
+          {/* Desktop nav links */}
+          <nav aria-label="Primary navigation" className="hidden md:flex items-center gap-1">
+            <NavItem href="/image-optimizer" label="Image" />
+            <NavItem href="/video-processor" label="Video" />
+            <NavItem href="/subtitle-generator" label="Subtitles" />
+            <NavItem href="/pdf-tools" label="PDF" />
+            <NavItem href="/ocr-extractor" label="OCR" />
+            <NavItem href="/qr-studio" label="QR" />
+          </nav>
+
+          {/* Right side */}
+          <div className="flex items-center gap-3">
+            <div
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
+              style={{
+                background: "rgba(57,255,20,0.08)",
+                border: "1px solid rgba(57,255,20,0.2)",
+                color: "var(--accent-neon)",
+              }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+              100% Offline
+            </div>
+
+            {/* Mobile menu button */}
+            <button
+              className="md:hidden p-2 rounded-lg transition"
+              style={{ color: "var(--text-secondary)" }}
+              onClick={() => setMobileOpen((v) => !v)}
+              aria-label={mobileOpen ? "Close menu" : "Open menu"}
+              aria-expanded={mobileOpen}
+            >
+              <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                {mobileOpen ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                )}
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile dropdown */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2 }}
+            className="md:hidden glass-dark border-t"
+            style={{ borderColor: "var(--border-subtle)" }}
+          >
+            <div className="mx-auto max-w-7xl px-4 py-3 flex flex-col gap-1">
+              {[
+                { href: "/image-optimizer", label: "🖼️  Image Compressor" },
+                { href: "/video-processor", label: "🎥  Video Cutter" },
+                { href: "/subtitle-generator", label: "🎙️  AI Subtitles" },
+                { href: "/pdf-tools", label: "📄  PDF Tools" },
+                { href: "/ocr-extractor", label: "🔍  OCR Extractor" },
+                { href: "/qr-studio", label: "📱  QR Studio" },
+              ].map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setMobileOpen(false)}
+                  className="px-3 py-2.5 rounded-lg text-sm font-medium transition"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </header>
   );
 }
 
-function NavLinks() {
-  const { t } = useLanguage();
-
+function NavItem({ href, label }: { href: string; label: string }) {
   return (
-    <>
-      <Link
-        href="/image-optimizer"
-        className="hidden sm:inline text-neutral-400 transition hover:text-white"
-      >
-        {t("tool_image_title")}
-      </Link>
-      <Link
-        href="/video-processor"
-        className="hidden sm:inline text-neutral-400 transition hover:text-white"
-      >
-        {t("tool_video_title")}
-      </Link>
-      <Link
-        href="/subtitle-generator"
-        className="hidden md:inline text-neutral-400 transition hover:text-white"
-      >
-        {t("tool_subtitle_title")}
-      </Link>
-      <Link
-        href="/pdf-tools"
-        className="hidden md:inline text-neutral-400 transition hover:text-white"
-      >
-        {t("tool_pdf_title")}
-      </Link>
-      <Link
-        href="/ocr-extractor"
-        className="hidden lg:inline text-neutral-400 transition hover:text-white"
-      >
-        {t("tool_ocr_title")}
-      </Link>
-      <Link
-        href="/qr-studio"
-        className="hidden lg:inline text-neutral-400 transition hover:text-white"
-      >
-        {t("tool_qr_title")}
-      </Link>
-    </>
+    <Link
+      href={href}
+      className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 hover:text-white"
+      style={{ color: "var(--text-secondary)" }}
+    >
+      {label}
+    </Link>
   );
 }
 
-/* ── Footer ── */
+/* ── Site Footer ─────────────────────────────────────────────────────────── */
+const GITHUB_URL = "https://github.com/KhangLama/media-ninja";
 
-function Footer() {
-  const { language, setLanguage, t } = useLanguage();
-
+function SiteFooter() {
   return (
     <footer
-      className="flex flex-col gap-4 border-t border-white/10 py-6 text-sm text-neutral-500 sm:flex-row sm:items-center sm:justify-between"
-      id="privacy"
+      className="mt-24 border-t"
+      style={{ borderColor: "var(--border-subtle)" }}
     >
-      <p>{t("footer_tagline")}</p>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <p>{t("footer_privacy_note")}</p>
-        <span className="hidden sm:inline text-neutral-700">•</span>
-        <select
-          aria-label="Select Language"
-          value={language}
-          onChange={(e) => setLanguage(e.target.value as "vi" | "en")}
-          className="rounded-md border border-white/10 bg-neutral-950 px-2 py-1 text-xs text-neutral-400 outline-none focus:border-cyan-300/70 hover:border-white/20 transition cursor-pointer"
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-8">
+          {/* Brand */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <div
+                className="w-6 h-6 rounded-md flex items-center justify-center font-black text-xs"
+                style={{ background: "linear-gradient(135deg, var(--accent-neon), var(--accent-cyan))" }}
+              >
+                <span className="text-black">N</span>
+              </div>
+              <span className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>
+                MediaNinja
+              </span>
+            </div>
+            <p className="text-xs max-w-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+              Your files never leave your device. Zero servers. Zero uploads. 100% private.
+            </p>
+            <a
+              href="https://github.com/KhangLama"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 mt-2 text-xs transition-colors hover:text-white"
+              style={{ color: "var(--text-muted)" }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.387.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 21.795 24 17.295 24 12c0-6.63-5.37-12-12-12" />
+              </svg>
+              Built by @KhangLama
+            </a>
+          </div>
+
+          {/* Right side links */}
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Privacy note */}
+            <div
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium"
+              style={{
+                background: "rgba(57,255,20,0.06)",
+                border: "1px solid rgba(57,255,20,0.15)",
+                color: "var(--accent-neon)",
+              }}
+            >
+              🔒 100% Client-side
+            </div>
+
+            {/* GitHub link */}
+            <a
+              href={GITHUB_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all hover:scale-105"
+              style={{
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                color: "var(--text-secondary)",
+              }}
+              aria-label="View source on GitHub"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.387.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 21.795 24 17.295 24 12c0-6.63-5.37-12-12-12" />
+              </svg>
+              Open Source
+            </a>
+          </div>
+        </div>
+
+        <div
+          className="mt-8 pt-6 border-t flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs"
+          style={{ borderColor: "var(--border-subtle)", color: "var(--text-muted)" }}
         >
-          <option value="vi">Tiếng Việt</option>
-          <option value="en">English</option>
-        </select>
+          <span>© 2026 MediaNinja. Open source under MIT License.</span>
+          <a
+            href={GITHUB_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-white transition-colors"
+            style={{ color: "var(--text-muted)" }}
+          >
+            github.com/KhangLama/media-ninja
+          </a>
+        </div>
       </div>
     </footer>
   );
 }
 
-/* ── Metric (used on landing page) ── */
+/* ── Floating Privacy Badge ─────────────────────────────────────────────── */
+function PrivacyBadge() {
+  const [visible, setVisible] = useState(false);
 
+  useEffect(() => {
+    const timer = setTimeout(() => setVisible(true), 1200);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <AnimatePresence>
+      {visible && (
+        <motion.div
+          initial={{ opacity: 0, y: 16, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 16, scale: 0.95 }}
+          transition={{ duration: 0.4, ease: "easeOut" }}
+          className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 pointer-events-none"
+        >
+          <div
+            className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold backdrop-blur-xl"
+            style={{
+              background: "rgba(18,18,18,0.85)",
+              border: "1px solid rgba(57,255,20,0.25)",
+              color: "var(--accent-neon)",
+              boxShadow: "0 4px 24px rgba(0,0,0,0.4), 0 0 0 1px rgba(57,255,20,0.1)",
+            }}
+          >
+            🔒 100% Offline — Your data never leaves your device
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+/* ── Metric (used on tool pages) ────────────────────────────────────────── */
 export function Metric({ value, label }: { value: string; label: string }) {
   return (
-    <div className="rounded-md bg-neutral-900 p-4">
-      <div className="text-2xl font-semibold text-white">{value}</div>
-      <div className="mt-1 text-xs text-neutral-400">{label}</div>
+    <div className="rounded-xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)" }}>
+      <div className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
+        {value}
+      </div>
+      <div className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+        {label}
+      </div>
     </div>
   );
 }
