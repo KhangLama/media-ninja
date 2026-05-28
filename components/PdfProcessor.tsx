@@ -601,11 +601,36 @@ export default function PdfProcessor() {
           if (pageIdx >= 0 && pageIdx < pages.length) {
             const page = pages[pageIdx];
             const { width, height } = page.getSize();
-            
-            // Map percentage coordinates (0-100) to PDF point dimensions
-            // Y is mapped from top-left to pdf-lib bottom-left coordinates
-            const pdfX = (edit.x / 100) * width;
-            const pdfY = height - (edit.y / 100) * height;
+            const rot = page.getRotation().angle;
+
+            const cropBox = page.getCropBox();
+            const cropX = cropBox ? cropBox.x : 0;
+            const cropY = cropBox ? cropBox.y : 0;
+
+            let pdfX = 0;
+            let pdfY = 0;
+            let textRotation = 0;
+
+            if (rot === 90) {
+              pdfX = (edit.y / 100) * width;
+              pdfY = (edit.x / 100) * height;
+              textRotation = -90;
+            } else if (rot === 180) {
+              pdfX = width - (edit.x / 100) * width;
+              pdfY = (edit.y / 100) * height;
+              textRotation = -180;
+            } else if (rot === 270) {
+              pdfX = width - (edit.y / 100) * width;
+              pdfY = height - (edit.x / 100) * height;
+              textRotation = -270;
+            } else {
+              pdfX = (edit.x / 100) * width;
+              pdfY = height - (edit.y / 100) * height;
+              textRotation = 0;
+            }
+
+            pdfX += cropX;
+            pdfY += cropY;
 
             // Convert hex color to normalized RGB fractions
             const hex = edit.color.replace("#", "");
@@ -617,13 +642,20 @@ export default function PdfProcessor() {
               const textWidth = helveticaFont.widthOfTextAtSize(edit.text, edit.size);
               const textHeight = edit.size;
               
+              const rad = (textRotation * Math.PI) / 180;
+              const cos = Math.cos(rad);
+              const sin = Math.sin(rad);
+              const rectX = pdfX - 2 * cos + 2 * sin;
+              const rectY = pdfY - 2 * sin - 2 * cos;
+
               // Draw solid white masking rectangle to hide original content
               page.drawRectangle({
-                x: pdfX - 2,
-                y: pdfY - 2,
+                x: rectX,
+                y: rectY,
                 width: textWidth + 6,
                 height: textHeight + 4,
                 color: rgb(1, 1, 1),
+                rotate: degrees(textRotation),
               });
             }
 
@@ -633,6 +665,7 @@ export default function PdfProcessor() {
               size: edit.size,
               font: helveticaFont,
               color: rgb(r, g, b),
+              rotate: degrees(textRotation),
             });
           }
         }
