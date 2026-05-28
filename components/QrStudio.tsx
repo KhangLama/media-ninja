@@ -5,6 +5,8 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useLanguage } from "@/components/LanguageContext";
 import jsQR from "jsqr";
+import { useRouter } from "next/navigation";
+import { getSharedFile, clearSharedFile, setSharedFile } from "@/lib/sharedFileStore";
 
 type TabId = "generate" | "scan";
 type ColorType = "solid" | "gradient";
@@ -13,6 +15,7 @@ type CornersType = "dot" | "square";
 
 export default function QrStudio() {
   const { t } = useLanguage();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabId>("generate");
 
   // Generate States
@@ -247,6 +250,17 @@ export default function QrStudio() {
     setScanCopied(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
+
+  useEffect(() => {
+    const sharedFile = getSharedFile();
+    if (sharedFile) {
+      if (sharedFile.type.startsWith("image/")) {
+        setActiveTab("scan");
+        void handleScanFilesSelect([sharedFile]);
+        setTimeout(clearSharedFile, 100);
+      }
+    }
+  }, [handleScanFilesSelect]);
 
   return (
     <div className="rounded-xl border border-white/10 bg-neutral-900/40 p-4 sm:p-6 backdrop-blur-md shadow-2xl">
@@ -582,17 +596,39 @@ export default function QrStudio() {
           ) : (
             /* Workspace scanning result display */
             <div className="space-y-4">
-              <div className="flex items-center justify-between border-b border-white/5 pb-4">
-                <div className="flex items-center gap-2.5">
-                  <h3 className="text-lg font-bold text-white">{scanFile.name}</h3>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-white/5 pb-4 gap-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <h3 className="text-lg font-bold text-white truncate max-w-xs sm:max-w-md">{scanFile.name}</h3>
                 </div>
-                <button
-                  onClick={clearScan}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-red-400 rounded-lg border border-white/10 bg-neutral-900/60 hover:bg-red-950/20 hover:text-red-300 transition cursor-pointer"
-                  type="button"
-                >
-                  {t("qr_scan_clear_image")}
-                </button>
+                <div className="flex items-center gap-2 flex-wrap shrink-0">
+                  <button
+                    onClick={() => {
+                      setSharedFile(scanFile);
+                      router.push("/image-optimizer");
+                    }}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-cyan-400 rounded-lg border border-cyan-500/30 bg-neutral-900/60 hover:bg-cyan-500/10 transition cursor-pointer"
+                    type="button"
+                  >
+                    🖼️ {t("tool_image_label") || "Image Studio"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSharedFile(scanFile);
+                      router.push("/ocr-extractor");
+                    }}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-cyan-400 rounded-lg border border-cyan-500/30 bg-neutral-900/60 hover:bg-cyan-500/10 transition cursor-pointer"
+                    type="button"
+                  >
+                    🔍 {t("tool_ocr_title") || "OCR Text"}
+                  </button>
+                  <button
+                    onClick={clearScan}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-red-400 rounded-lg border border-white/10 bg-neutral-900/60 hover:bg-red-950/20 hover:text-red-300 transition cursor-pointer"
+                    type="button"
+                  >
+                    {t("qr_scan_clear_image")}
+                  </button>
+                </div>
               </div>
 
               {/* Status and output */}

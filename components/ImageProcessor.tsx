@@ -4,8 +4,9 @@ import EXIF from "exif-js";
 import imageCompression from "browser-image-compression";
 import JSZip from "jszip";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getSharedFile, clearSharedFile, setSharedFile } from "@/lib/sharedFileStore";
+import { useRouter } from "next/navigation";
 import { useLanguage } from "@/components/LanguageContext";
-import { getSharedFile, clearSharedFile } from "@/lib/sharedFileStore";
 
 type ProcessingStatus = "idle" | "processing" | "ready" | "error";
 
@@ -73,6 +74,7 @@ const DEFAULT_EDIT_CONFIG: ImageEditConfig = {
 
 export default function ImageProcessor() {
   const { t } = useLanguage();
+  const router = useRouter();
   const [items, setItems] = useState<ProcessedImage[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isZipping, setIsZipping] = useState(false);
@@ -688,7 +690,33 @@ export default function ImageProcessor() {
               )}
             </div>
 
-            <div className="flex gap-2 shrink-0">
+            <div className="flex gap-2 shrink-0 flex-wrap justify-end">
+              {/* OCR */}
+              <button
+                className="px-2.5 py-1 rounded bg-neutral-900 border border-cyan-500/30 hover:bg-cyan-500/10 text-[10px] text-cyan-400 font-semibold transition cursor-pointer"
+                onClick={() => {
+                  setSharedFile(activeEditItem.originalFile);
+                  router.push("/ocr-extractor");
+                }}
+                title="Extract text from this image"
+                type="button"
+              >
+                🔍 OCR
+              </button>
+
+              {/* QR Scan */}
+              <button
+                className="px-2.5 py-1 rounded bg-neutral-900 border border-amber-500/30 hover:bg-amber-500/10 text-[10px] text-amber-400 font-semibold transition cursor-pointer"
+                onClick={() => {
+                  setSharedFile(activeEditItem.originalFile);
+                  router.push("/qr-studio");
+                }}
+                title="Scan QR code in this image"
+                type="button"
+              >
+                📱 QR
+              </button>
+
               <button
                 className="px-2.5 py-1 rounded bg-neutral-900 border border-white/10 hover:border-white/20 text-[10px] text-neutral-300 font-semibold transition disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                 disabled={activeEditItem.status === "processing" || activeEditItem.metadataCleared || !(activeEditItem.exif && hasExif(activeEditItem.exif))}

@@ -6,7 +6,8 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useLanguage } from "@/components/LanguageContext";
 import { PDFDocument, rgb, degrees, StandardFonts } from "pdf-lib";
 import JSZip from "jszip";
-import { getSharedFile, clearSharedFile } from "@/lib/sharedFileStore";
+import { getSharedFile, clearSharedFile, setSharedFile } from "@/lib/sharedFileStore";
+import { useRouter } from "next/navigation";
 
 // Simple SVG Icons to keep component self-contained and clean
 const MergeIcon = () => (
@@ -93,6 +94,7 @@ type QueuedFile = {
 
 export default function PdfProcessor() {
   const { t } = useLanguage();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabId>("merge");
   const [files, setFiles] = useState<QueuedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -732,10 +734,27 @@ export default function PdfProcessor() {
                       </div>
                     )}
                     
+                    {/* OCR for PDF or Image */}
+                    {(queued.file.type === "application/pdf" ||
+                      queued.file.name.toLowerCase().endsWith(".pdf") ||
+                      queued.file.type.startsWith("image/")) && (
+                      <button
+                        onClick={() => {
+                          setSharedFile(queued.file);
+                          router.push("/ocr-extractor");
+                        }}
+                        className="p-1.5 px-2.5 rounded-lg border border-cyan-500/30 bg-neutral-900/60 text-[10px] font-semibold text-cyan-400 hover:bg-cyan-500/10 hover:text-white transition-all cursor-pointer"
+                        title="Extract text from this file using OCR"
+                        type="button"
+                      >
+                        🔍 OCR
+                      </button>
+                    )}
+
                     {/* Remove file */}
                     <button
                       onClick={() => removeFile(queued.id)}
-                      className="p-1.5 rounded-lg border border-white/5 bg-neutral-900/60 text-neutral-400 hover:text-red-400 hover:bg-red-950/20 transition-all"
+                      className="p-1.5 rounded-lg border border-white/5 bg-neutral-900/60 text-neutral-400 hover:text-red-400 hover:bg-red-950/20 transition-all cursor-pointer"
                       type="button"
                     >
                       <TrashIcon />

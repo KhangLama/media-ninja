@@ -281,6 +281,7 @@ const viTranslations: Translations = {
   "sub_editor_no_segments": "Chưa có câu phụ đề nào. Nhấn bắt đầu để trích xuất phụ đề tự động.",
   "sub_editor_sync_player": "Đồng bộ video",
   "sub_editor_btn_delete": "Xóa câu",
+  "sub_btn_change_file": "Hủy và tải file khác",
 
   // Video Processor Upload Panel
   "vid_upload_title": "Chọn nhiều video để cắt trực quan",
@@ -364,6 +365,8 @@ const viTranslations: Translations = {
   "ocr_result_title": "Kết quả văn bản trích xuất",
   "ocr_btn_copy": "Sao chép văn bản",
   "ocr_copied": "Đã sao chép!",
+  "ocr_btn_clear": "Xóa file",
+  "ocr_sidebar_title": "Cấu hình OCR",
 
   // QR Studio
   "tool_qr_title": "QR Studio",
@@ -713,6 +716,7 @@ const enTranslations: Translations = {
   "sub_editor_no_segments": "No subtitle segments yet. Start transcription to generate subtitles.",
   "sub_editor_sync_player": "Sync Video",
   "sub_editor_btn_delete": "Delete",
+  "sub_btn_change_file": "Cancel & upload another file",
 
   // Video Processor Upload Panel
   "vid_upload_title": "Select multiple videos for visual trimming",
@@ -796,6 +800,8 @@ const enTranslations: Translations = {
   "ocr_result_title": "Extracted Text Result",
   "ocr_btn_copy": "Copy Text",
   "ocr_copied": "Copied!",
+  "ocr_btn_clear": "Clear File",
+  "ocr_sidebar_title": "OCR Configuration",
 
   // QR Studio
   "tool_qr_title": "QR Studio",

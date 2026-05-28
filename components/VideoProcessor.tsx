@@ -5,7 +5,8 @@ import { fetchFile } from "@ffmpeg/util";
 import JSZip from "jszip";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLanguage } from "@/components/LanguageContext";
-import { getSharedFile, clearSharedFile } from "@/lib/sharedFileStore";
+import { getSharedFile, clearSharedFile, setSharedFile } from "@/lib/sharedFileStore";
+import { useRouter } from "next/navigation";
 
 type OutputFormat = "mp4" | "webm" | "gif" | "mp3";
 type ProcessorStatus = "idle" | "loading" | "ready" | "processing" | "done" | "error";
@@ -51,6 +52,7 @@ const MIN_CLIP_DURATION = 0.25;
 
 export default function VideoProcessor() {
   const { t, language } = useLanguage();
+  const router = useRouter();
   const ffmpegRef = useRef<FFmpeg | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -1038,14 +1040,27 @@ export default function VideoProcessor() {
                     startTime={activeVideo.selection[0]}
                   />
 
-                  <div className="mt-4 flex flex-col gap-3 rounded-lg border border-white/10 bg-neutral-950 p-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0 text-sm">
-                      <p className="truncate font-medium text-neutral-200">{activeVideo.displayName}</p>
-                      <p className="mt-1 text-xs text-neutral-500">
-                        {formatBytes(activeVideo.originalFile.size)} • {t("vid_editor_trimmed_output", { duration: formatDuration(clipDuration) })}
-                      </p>
-                    </div>
-                  </div>
+                   <div className="mt-4 flex flex-col gap-3 rounded-lg border border-white/10 bg-neutral-950 p-4 sm:flex-row sm:items-center sm:justify-between">
+                     <div className="min-w-0 text-sm">
+                       <p className="truncate font-medium text-neutral-200">{activeVideo.displayName}</p>
+                       <p className="mt-1 text-xs text-neutral-500">
+                         {formatBytes(activeVideo.originalFile.size)} • {t("vid_editor_trimmed_output", { duration: formatDuration(clipDuration) })}
+                       </p>
+                     </div>
+                     <div className="flex items-center gap-2 shrink-0">
+                       <button
+                         onClick={() => {
+                           setSharedFile(activeVideo.originalFile);
+                           router.push("/subtitle-generator");
+                         }}
+                         className="px-2.5 py-1.5 rounded bg-neutral-900 border border-cyan-500/30 hover:bg-cyan-500/10 text-[10px] text-cyan-400 font-semibold transition cursor-pointer"
+                         title="Generate AI subtitles for this video"
+                         type="button"
+                       >
+                         🎙️ {t("video_choice_subtitles") || "AI Subtitles"}
+                       </button>
+                     </div>
+                   </div>
 
                   {activeVideo.error && (
                     <p className="mt-4 rounded-md border border-red-400/30 bg-red-400/10 px-3 py-2 text-xs text-red-200">
