@@ -2,26 +2,28 @@
 
 import { useRef } from "react";
 import { motion, useInView } from "framer-motion";
+import { useLanguage } from "@/components/LanguageContext";
 
 const techBadges = [
-  { name: "FFmpeg WASM", desc: "Video processing", emoji: "🎬", color: "#FF6B6B", rgb: "255,107,107" },
-  { name: "Whisper.js", desc: "AI Speech-to-Text", emoji: "🎙️", color: "var(--accent-cyan)", rgb: "34,211,238" },
-  { name: "Web Workers", desc: "Non-blocking execution", emoji: "⚙️", color: "var(--accent-neon)", rgb: "57,255,20" },
-  { name: "Tesseract.js", desc: "OCR engine", emoji: "🔍", color: "#F472B6", rgb: "244,114,182" },
-  { name: "PDF-lib", desc: "PDF manipulation", emoji: "📄", color: "var(--accent-orange)", rgb: "251,146,60" },
-  { name: "WebAssembly", desc: "Near-native speed", emoji: "🚀", color: "var(--accent-purple)", rgb: "168,85,247" },
-  { name: "Canvas API", desc: "Image processing", emoji: "🖼️", color: "#FBBF24", rgb: "251,191,36" },
-  { name: "IndexedDB", desc: "Local storage", emoji: "💾", color: "#6EE7B7", rgb: "110,231,183" },
+  { id: "ffmpeg", name: "FFmpeg WASM", emoji: "🎬", color: "#FF6B6B", rgb: "255,107,107" },
+  { id: "whisper", name: "Whisper.js", emoji: "🎙️", color: "var(--accent-cyan)", rgb: "34,211,238" },
+  { id: "workers", name: "Web Workers", emoji: "⚙️", color: "var(--accent-neon)", rgb: "57,255,20" },
+  { id: "tesseract", name: "Tesseract.js", emoji: "🔍", color: "#F472B6", rgb: "244,114,182" },
+  { id: "pdf", name: "PDF-lib", emoji: "📄", color: "var(--accent-orange)", rgb: "251,146,60" },
+  { id: "wasm", name: "WebAssembly", emoji: "🚀", color: "var(--accent-purple)", rgb: "168,85,247" },
+  { id: "canvas", name: "Canvas API", emoji: "🖼️", color: "#FBBF24", rgb: "251,191,36" },
+  { id: "indexeddb", name: "IndexedDB", emoji: "💾", color: "#6EE7B7", rgb: "110,231,183" },
 ];
 
 const privacyPoints = [
-  { icon: "🚫", text: "Zero server uploads — ever" },
-  { icon: "🧠", text: "AI models cached in your browser" },
-  { icon: "🔑", text: "No account, no tracking, no ads" },
-  { icon: "🌐", text: "Works fully offline after first load" },
+  { id: 1, icon: "🚫" },
+  { id: 2, icon: "🧠" },
+  { id: 3, icon: "🔑" },
+  { id: 4, icon: "🌐" },
 ];
 
 export default function TechBadges() {
+  const { t } = useLanguage();
   const ref = useRef<HTMLElement>(null);
   const inView = useInView(ref, { once: true, margin: "-80px" });
 
@@ -54,24 +56,23 @@ export default function TechBadges() {
             color: "var(--accent-neon)",
           }}
         >
-          🔒 Privacy Verified
+          🔒 {t("privacy")} Verified
         </div>
 
         <h2
           className="text-2xl sm:text-3xl font-extrabold mb-3"
           style={{ color: "var(--text-primary)" }}
         >
-          Built for the privacy-conscious creator
+          {t("tech_title")}
         </h2>
         <p className="text-sm max-w-lg mx-auto mb-8" style={{ color: "var(--text-secondary)" }}>
-          Every tool runs 100% in your browser. Your files are processed locally using WebAssembly
-          and never touch our servers — because there are no servers.
+          {t("tech_description")}
         </p>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-2xl mx-auto">
           {privacyPoints.map((point, i) => (
             <motion.div
-              key={point.text}
+              key={point.id}
               initial={{ opacity: 0, scale: 0.9 }}
               animate={inView ? { opacity: 1, scale: 1 } : {}}
               transition={{ duration: 0.4, delay: 0.2 + i * 0.08 }}
@@ -83,7 +84,7 @@ export default function TechBadges() {
             >
               <span className="text-2xl">{point.icon}</span>
               <span className="text-xs font-medium text-center leading-snug" style={{ color: "var(--text-secondary)" }}>
-                {point.text}
+                {t(`privacy_point_${point.id}`)}
               </span>
             </motion.div>
           ))}
@@ -100,7 +101,7 @@ export default function TechBadges() {
           className="text-xs font-semibold uppercase tracking-widest mb-5 text-center"
           style={{ color: "var(--text-muted)" }}
         >
-          Powered by open-source technology
+          {t("tech_powered_by")}
         </p>
 
         <div className="flex flex-wrap justify-center gap-3">
@@ -118,12 +119,12 @@ export default function TechBadges() {
               }}
             >
               <span className="text-lg">{badge.emoji}</span>
-              <div>
+              <div className="text-left">
                 <p className="text-xs font-bold leading-none mb-0.5" style={{ color: badge.color }}>
                   {badge.name}
                 </p>
-                <p className="text-xs leading-none" style={{ color: "var(--text-muted)" }}>
-                  {badge.desc}
+                <p className="text-[10px] leading-none mt-1" style={{ color: "var(--text-muted)" }}>
+                  {t(`tech_desc_${badge.id}`)}
                 </p>
               </div>
             </motion.div>

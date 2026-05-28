@@ -6,7 +6,9 @@ export function setSharedFile(file: File | null) {
 }
 
 export function getSharedFile(): File | null {
-  const file = sharedFile;
-  sharedFile = null; // Clear immediately to ensure one-time usage
-  return file;
+  return sharedFile;
+}
+
+export function clearSharedFile() {
+  sharedFile = null;
 }

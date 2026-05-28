@@ -5,11 +5,14 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useLanguage } from "@/components/LanguageContext";
 import { createWorker } from "tesseract.js";
+import { useRouter } from "next/navigation";
+import { getSharedFile, clearSharedFile, setSharedFile } from "@/lib/sharedFileStore";
 
 type OcrLang = "vie" | "eng" | "vie+eng";
 
 export default function OcrExtractor() {
   const { t } = useLanguage();
+  const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [ocrLang, setOcrLang] = useState<OcrLang>("vie+eng");
@@ -23,13 +26,25 @@ export default function OcrExtractor() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Lazy load PDF.js in client to avoid Next.js SSR build errors
   useEffect(() => {
     if (typeof window !== "undefined") {
       import("pdfjs-dist").then((module) => {
         module.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@5.7.284/build/pdf.worker.min.mjs`;
         setPdfjs(module);
       }).catch((err) => console.error("Error loading PDF.js worker:", err));
+    }
+  }, []);
+
+  // Load shared file on mount
+  useEffect(() => {
+    const sharedFile = getSharedFile();
+    if (sharedFile) {
+      const isImage = sharedFile.type.startsWith("image/");
+      const isPdf = sharedFile.type === "application/pdf" || sharedFile.name.toLowerCase().endsWith(".pdf");
+      if (isImage || isPdf) {
+        setFile(sharedFile);
+        setTimeout(clearSharedFile, 100);
+      }
     }
   }, []);
 
@@ -130,7 +145,7 @@ export default function OcrExtractor() {
 
             const { data: { text } } = await worker.recognize(canvas);
 
-            fullText += `--- [Trang ${i}/${totalPages}] ---\n${text.trim()}\n\n`;
+            fullText += `--- [${t("pdf_preview_page").replace("{page}", i.toString()).replace("{total}", totalPages.toString())}] ---\n${text.trim()}\n\n`;
             setResultText(fullText);
           }
         }
@@ -221,20 +236,57 @@ export default function OcrExtractor() {
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6 items-start">
           {/* Main Content Area */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between border-b border-white/5 pb-4">
-              <div className="flex items-center gap-2.5">
-                <h3 className="text-lg font-bold text-white">{file.name}</h3>
-                <span className="text-xs text-neutral-400">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-white/5 pb-4 gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <h3 className="text-lg font-bold text-white truncate max-w-xs sm:max-w-md">{file.name}</h3>
+                <span className="text-xs text-neutral-400 shrink-0">
                   ({(file.size / 1024).toFixed(0)} KB)
                 </span>
               </div>
-              <button
-                onClick={clearAll}
-                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-red-400 rounded-lg border border-white/10 bg-neutral-900/60 hover:bg-red-950/20 hover:text-red-300 transition cursor-pointer"
-                type="button"
-              >
-                Xóa file
-              </button>
+              <div className="flex items-center gap-2 flex-wrap shrink-0">
+                {file.type.startsWith("image/") ? (
+                  <>
+                    <button
+                      onClick={() => {
+                        setSharedFile(file);
+                        router.push("/image-optimizer");
+                      }}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-cyan-400 rounded-lg border border-cyan-500/30 bg-neutral-900/60 hover:bg-cyan-500/10 transition cursor-pointer"
+                      type="button"
+                    >
+                      🖼️ {t("tool_image_label") || "Image Studio"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSharedFile(file);
+                        router.push("/qr-studio");
+                      }}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-amber-400 rounded-lg border border-amber-500/30 bg-neutral-900/60 hover:bg-amber-500/10 transition cursor-pointer"
+                      type="button"
+                    >
+                      📱 {t("tool_qr_title") || "QR Studio"}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setSharedFile(file);
+                      router.push("/pdf-tools");
+                    }}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-emerald-400 rounded-lg border border-emerald-500/30 bg-neutral-900/60 hover:bg-emerald-500/10 transition cursor-pointer"
+                    type="button"
+                  >
+                    📄 {t("tool_pdf_label") || "PDF Suite"}
+                  </button>
+                )}
+                <button
+                  onClick={clearAll}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-red-400 rounded-lg border border-white/10 bg-neutral-900/60 hover:bg-red-950/20 hover:text-red-300 transition cursor-pointer"
+                  type="button"
+                >
+                  {t("ocr_btn_clear") || "Clear File"}
+                </button>
+              </div>
             </div>
 
             {/* Extraction progress indicator */}
@@ -291,7 +343,7 @@ export default function OcrExtractor() {
           {/* Configuration Sidebar */}
           <div className="rounded-xl border border-white/5 bg-neutral-900/60 p-4 sm:p-5 space-y-5">
             <h3 className="text-md font-bold text-white tracking-wide border-b border-white/5 pb-2.5">
-              Cấu hình OCR
+              {t("ocr_sidebar_title") || "OCR Configuration"}
             </h3>
 
             <div className="space-y-3">

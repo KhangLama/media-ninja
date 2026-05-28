@@ -1,19 +1,30 @@
 "use client";
 
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, useMotionValue, useTransform, AnimatePresence } from "framer-motion";
 import { setSharedFile } from "@/lib/sharedFileStore";
+import { useLanguage } from "@/components/LanguageContext";
 
 type DropChoice = "video-processor" | "subtitle-generator" | null;
 
 export default function HeroDropZone() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [isDragging, setIsDragging] = useState(false);
   const [showVideoChoice, setShowVideoChoice] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const dropRef = useRef<HTMLDivElement>(null);
   const dragCounter = useRef(0);
+
+  // Auto dismiss error toast
+  useEffect(() => {
+    if (errorMsg) {
+      const timer = setTimeout(() => setErrorMsg(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [errorMsg]);
 
   // Magnetic cursor effect
   const mouseX = useMotionValue(0);
@@ -71,11 +82,47 @@ export default function HeroDropZone() {
     } else if (file.type.startsWith("video/")) {
       setPendingFile(file);
       setShowVideoChoice(true);
+    } else if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+      setSharedFile(file);
+      router.push("/pdf-tools");
+    } else {
+      setErrorMsg(t("drop_err_unsupported"));
     }
   };
 
   return (
     <section className="relative pt-12 pb-8 sm:pt-20 sm:pb-12">
+      {/* Toast Alert */}
+      <AnimatePresence>
+        {errorMsg && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className="fixed top-20 left-1/2 -translate-x-1/2 z-50 pointer-events-auto"
+          >
+            <div
+              className="flex items-center gap-3 px-5 py-3 rounded-xl text-sm font-semibold backdrop-blur-xl shadow-2xl"
+              style={{
+                background: "rgba(220,38,38,0.9)",
+                border: "1px solid rgba(220,38,38,0.2)",
+                color: "#ffffff",
+                boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
+              }}
+            >
+              <span>⚠️</span>
+              <span>{errorMsg}</span>
+              <button
+                onClick={() => setErrorMsg(null)}
+                className="ml-3 text-white/70 hover:text-white transition-colors cursor-pointer text-xs font-bold"
+              >
+                ✕
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Background radial glow */}
       <div
         className="pointer-events-none absolute inset-0 -z-10"
@@ -101,11 +148,11 @@ export default function HeroDropZone() {
           }}
         >
           <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
-          Processing happens entirely in your browser
+          {t("hero_badge")}
         </div>
 
         <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-extrabold tracking-tight leading-[1.1] mb-5">
-          <span style={{ color: "var(--text-primary)" }}>Your Media.</span>
+          <span style={{ color: "var(--text-primary)" }}>{t("hero_title_1")}</span>
           <br />
           <span
             style={{
@@ -115,7 +162,7 @@ export default function HeroDropZone() {
               backgroundClip: "text",
             }}
           >
-            Your Privacy.
+            {t("hero_title_2")}
           </span>
         </h1>
 
@@ -123,8 +170,7 @@ export default function HeroDropZone() {
           className="max-w-xl mx-auto text-base sm:text-lg leading-relaxed"
           style={{ color: "var(--text-secondary)" }}
         >
-          Drop any file below. MediaNinja handles it — entirely offline,
-          with zero uploads to any server.
+          {t("hero_description_text")}
         </p>
       </motion.div>
 
@@ -165,7 +211,7 @@ export default function HeroDropZone() {
             <label className="flex flex-col items-center justify-center gap-5 py-16 px-8 cursor-pointer select-none">
               <input
                 type="file"
-                accept="image/*,video/*"
+                accept="image/*,video/*,application/pdf"
                 className="sr-only"
                 onChange={handleFileInput}
                 id="drop-zone-input"
@@ -197,12 +243,11 @@ export default function HeroDropZone() {
 
               <div className="text-center">
                 <p className="text-lg font-bold mb-1.5" style={{ color: "var(--text-primary)" }}>
-                  {isDragging ? "Release to process" : "Drop your file here"}
+                  {isDragging ? t("drop_release") : t("drop_prompt")}
                 </p>
                 <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                  or{" "}
                   <span style={{ color: "var(--accent-neon)" }} className="font-medium underline underline-offset-2">
-                    click to browse
+                    {t("drop_browse")}
                   </span>
                 </p>
               </div>
@@ -210,9 +255,9 @@ export default function HeroDropZone() {
               {/* File type hints */}
               <div className="flex items-center gap-3 flex-wrap justify-center">
                 {[
-                  { icon: "🖼️", label: "Images → Compress", href: "/image-optimizer" },
-                  { icon: "✂️", label: "Video → Cut", href: "/video-processor" },
-                  { icon: "🎙️", label: "Video → Subtitles", href: "/subtitle-generator" },
+                  { icon: "🖼️", label: t("bento_title_image"), href: "/image-optimizer" },
+                  { icon: "✂️", label: t("bento_title_video"), href: "/video-processor" },
+                  { icon: "🎙️", label: t("bento_title_subtitle"), href: "/subtitle-generator" },
                 ].map((chip) => (
                   <a
                     key={chip.href}
@@ -261,6 +306,8 @@ function VideoChoiceModal({
   onClose: () => void;
   onChoice: (route: DropChoice) => void;
 }) {
+  const { t } = useLanguage();
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -279,15 +326,15 @@ function VideoChoiceModal({
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-xl font-bold mb-2 text-center" style={{ color: "var(--text-primary)" }}>
-          What do you want to do with this video?
+          {t("video_choice_title")}
         </h2>
         <p className="text-sm text-center mb-6" style={{ color: "var(--text-muted)" }}>
-          Choose a tool to process your video
+          {t("video_choice_desc")}
         </p>
         <div className="grid grid-cols-2 gap-4">
           <button
             onClick={() => onChoice("video-processor")}
-            className="group flex flex-col items-center gap-3 p-5 rounded-xl transition-all hover:scale-105"
+            className="group flex flex-col items-center gap-3 p-5 rounded-xl transition-all hover:scale-105 cursor-pointer text-center"
             style={{
               background: "rgba(255,255,255,0.04)",
               border: "1px solid rgba(255,255,255,0.08)",
@@ -296,16 +343,16 @@ function VideoChoiceModal({
             <span className="text-3xl">✂️</span>
             <div>
               <p className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>
-                Video Cutter
+                {t("video_choice_cutter")}
               </p>
-              <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-                Trim & crop for TikTok/Reels
+              <p className="text-[10px] mt-0.5 leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                {t("video_choice_cutter_desc")}
               </p>
             </div>
           </button>
           <button
             onClick={() => onChoice("subtitle-generator")}
-            className="group flex flex-col items-center gap-3 p-5 rounded-xl transition-all hover:scale-105"
+            className="group flex flex-col items-center gap-3 p-5 rounded-xl transition-all hover:scale-105 cursor-pointer text-center"
             style={{
               background: "rgba(255,255,255,0.04)",
               border: "1px solid rgba(255,255,255,0.08)",
@@ -314,20 +361,20 @@ function VideoChoiceModal({
             <span className="text-3xl">🎙️</span>
             <div>
               <p className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>
-                AI Subtitles
+                {t("video_choice_subtitles")}
               </p>
-              <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-                Auto-generate with Whisper
+              <p className="text-[10px] mt-0.5 leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                {t("video_choice_subtitles_desc")}
               </p>
             </div>
           </button>
         </div>
         <button
           onClick={onClose}
-          className="mt-4 w-full py-2 rounded-lg text-xs transition"
+          className="mt-4 w-full py-2 rounded-lg text-xs transition cursor-pointer hover:text-white"
           style={{ color: "var(--text-muted)" }}
         >
-          Cancel
+          {t("img_edit_btn_cancel")}
         </button>
       </motion.div>
     </motion.div>

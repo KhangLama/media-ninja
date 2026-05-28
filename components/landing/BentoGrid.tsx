@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRef } from "react";
 import { motion, useInView } from "framer-motion";
+import { useLanguage } from "@/components/LanguageContext";
 
 type BentoTile = {
   id: string;
@@ -100,6 +101,7 @@ function BentoCard({
   wide?: boolean;
 }) {
   const ref = useRef<HTMLAnchorElement>(null);
+  const { t } = useLanguage();
 
   return (
     <motion.div
@@ -174,10 +176,10 @@ function BentoCard({
               className="text-base sm:text-lg font-bold mb-1.5 transition-colors duration-200 group-hover:text-white"
               style={{ color: "var(--text-primary)" }}
             >
-              {tile.title}
+              {t(`bento_title_${tile.id}`)}
             </h3>
             <p className="text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-              {tile.description}
+              {t(`bento_desc_${tile.id}`)}
             </p>
           </div>
 
@@ -192,7 +194,7 @@ function BentoCard({
               className="text-xs font-medium whitespace-nowrap"
               style={{ color: tile.accent, opacity: 0.8 }}
             >
-              {tile.label}
+              {t(`bento_label_${tile.id}`)}
             </span>
             <motion.span
               className="text-lg font-light"
@@ -212,6 +214,7 @@ function BentoCard({
 
 /* ── BentoGrid ─────────────────────────────────────────────────────────── */
 export default function BentoGrid() {
+  const { t } = useLanguage();
   const headerRef = useRef<HTMLDivElement>(null);
   const headerInView = useInView(headerRef, { once: true, margin: "-60px" });
 
@@ -231,14 +234,14 @@ export default function BentoGrid() {
           className="text-xs font-semibold uppercase tracking-widest mb-3"
           style={{ color: "var(--accent-neon)" }}
         >
-          ✦ The Toolkit
+          {t("bento_tagline")}
         </p>
         <h2
           className="text-2xl sm:text-3xl lg:text-4xl font-extrabold"
           style={{ color: "var(--text-primary)" }}
         >
-          Every media task.{" "}
-          <span style={{ color: "var(--text-muted)" }}>One place.</span>
+          {t("bento_title")}{" "}
+          <span style={{ color: "var(--text-muted)" }}>{t("bento_title_muted")}</span>
         </h2>
       </motion.div>
 

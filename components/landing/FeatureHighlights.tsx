@@ -3,25 +3,16 @@
 import Link from "next/link";
 import { useRef } from "react";
 import { motion, useInView } from "framer-motion";
+import { useLanguage } from "@/components/LanguageContext";
 
 const features = [
   {
     id: "image",
     href: "/image-optimizer",
     emoji: "🖼️",
-    title: "Before / After Comparison",
-    subtitle: "Image Compressor",
-    description:
-      "Drag the divider to see exactly how much quality you're preserving. Batch compress hundreds of images and download everything as a single ZIP — all in seconds.",
-    highlights: [
-      "Interactive comparison slider",
-      "Batch processing — unlimited files",
-      "EXIF & GPS metadata removal",
-      "JPEG, PNG, WebP support",
-    ],
     accent: "var(--accent-neon)",
     accentRgb: "57,255,20",
-    visual: (
+    visual: (t: any) => (
       <div className="relative w-full h-32 rounded-xl overflow-hidden">
         <div
           className="absolute inset-0"
@@ -32,10 +23,10 @@ const features = [
           <span className="text-xs text-black font-bold">↔</span>
         </div>
         <div className="absolute left-3 top-3 text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "rgba(57,255,20,0.15)", color: "var(--accent-neon)" }}>
-          Before
+          {t("before")}
         </div>
         <div className="absolute right-3 top-3 text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "rgba(57,255,20,0.15)", color: "var(--accent-neon)" }}>
-          After
+          {t("after")}
         </div>
         <div className="absolute bottom-3 left-3 text-xs" style={{ color: "var(--text-muted)" }}>4.2 MB</div>
         <div className="absolute bottom-3 right-3 text-xs" style={{ color: "var(--accent-neon)" }}>→ 380 KB (-91%)</div>
@@ -46,19 +37,9 @@ const features = [
     id: "video",
     href: "/video-processor",
     emoji: "✂️",
-    title: "TikTok-Ready Presets",
-    subtitle: "Video Cutter",
-    description:
-      "Mobile-first 9:16 preview with a drag-to-trim timeline. One-click presets for TikTok, Instagram Reels, and YouTube Shorts. Powered by FFmpeg running entirely in your browser.",
-    highlights: [
-      "9:16 TikTok & Reels preview",
-      "Drag-to-trim timeline",
-      "Platform presets (TikTok, Reels, Shorts)",
-      "FFmpeg WASM — zero server uploads",
-    ],
     accent: "var(--accent-purple)",
     accentRgb: "168,85,247",
-    visual: (
+    visual: () => (
       <div className="relative w-full h-32 rounded-xl overflow-hidden flex items-center justify-center gap-3">
         <div
           className="absolute inset-0 opacity-30"
@@ -92,54 +73,54 @@ const features = [
     id: "subtitle",
     href: "/subtitle-generator",
     emoji: "🎙️",
-    title: "Click Text → Jump to Frame",
-    subtitle: "AI Auto-Subtitles",
-    description:
-      "A text-based video editor. Click any timestamped word in the transcript to jump to that exact frame in the video. Edit, export as SRT/VTT, or burn directly into the video.",
-    highlights: [
-      "Whisper AI — runs 100% offline",
-      "Click word → jump to frame",
-      "Export SRT, VTT, TXT",
-      "Burn-in subtitles to video",
-    ],
     accent: "var(--accent-cyan)",
     accentRgb: "34,211,238",
-    visual: (
-      <div className="relative w-full h-32 rounded-xl overflow-hidden p-3 flex flex-col gap-1.5">
-        <div
-          className="absolute inset-0 opacity-30"
-          style={{ background: "linear-gradient(135deg, rgba(34,211,238,0.15), transparent)" }}
-        />
-        {[
-          { time: "00:01", text: "Welcome to MediaNinja.", active: false },
-          { time: "00:03", text: "All processing is done locally.", active: true },
-          { time: "00:06", text: "Your privacy is guaranteed.", active: false },
-        ].map((line) => (
+    visual: (t: any) => {
+      const activeLine = t("language") === "vi" 
+        ? "Mọi quá trình xử lý đều chạy cục bộ."
+        : "All processing is done locally.";
+      const line1 = t("language") === "vi" ? "Chào mừng đến với MediaNinja." : "Welcome to MediaNinja.";
+      const line3 = t("language") === "vi" ? "Quyền riêng tư của bạn được đảm bảo." : "Your privacy is guaranteed.";
+
+      return (
+        <div className="relative w-full h-32 rounded-xl overflow-hidden p-3 flex flex-col gap-1.5">
           <div
-            key={line.time}
-            className="relative flex items-center gap-2 px-2 py-1 rounded-md text-xs transition-all"
-            style={{
-              background: line.active ? "rgba(34,211,238,0.12)" : "transparent",
-              border: line.active ? "1px solid rgba(34,211,238,0.25)" : "1px solid transparent",
-            }}
-          >
-            <span className="font-mono flex-shrink-0" style={{ color: line.active ? "var(--accent-cyan)" : "var(--text-muted)" }}>
-              {line.time}
-            </span>
-            <span style={{ color: line.active ? "var(--text-primary)" : "var(--text-muted)" }}>{line.text}</span>
-            {line.active && (
-              <span className="ml-auto text-xs px-1.5 py-0.5 rounded" style={{ background: "rgba(34,211,238,0.15)", color: "var(--accent-cyan)" }}>
-                ▶
+            className="absolute inset-0 opacity-30"
+            style={{ background: "linear-gradient(135deg, rgba(34,211,238,0.15), transparent)" }}
+          />
+          {[
+            { time: "00:01", text: line1, active: false },
+            { time: "00:03", text: activeLine, active: true },
+            { time: "00:06", text: line3, active: false },
+          ].map((line) => (
+            <div
+              key={line.time}
+              className="relative flex items-center gap-2 px-2 py-1 rounded-md text-xs transition-all"
+              style={{
+                background: line.active ? "rgba(34,211,238,0.12)" : "transparent",
+                border: line.active ? "1px solid rgba(34,211,238,0.25)" : "1px solid transparent",
+              }}
+            >
+              <span className="font-mono flex-shrink-0" style={{ color: line.active ? "var(--accent-cyan)" : "var(--text-muted)" }}>
+                {line.time}
               </span>
-            )}
-          </div>
-        ))}
-      </div>
-    ),
+              <span style={{ color: line.active ? "var(--text-primary)" : "var(--text-muted)" }}>{line.text}</span>
+              {line.active && (
+                <span className="ml-auto text-xs px-1.5 py-0.5 rounded" style={{ background: "rgba(34,211,238,0.15)", color: "var(--accent-cyan)" }}>
+                  ▶
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      );
+    },
   },
 ];
 
 export default function FeatureHighlights() {
+  const { t } = useLanguage();
+
   return (
     <section className="py-16" id="features">
       {/* Section header */}
@@ -154,11 +135,11 @@ export default function FeatureHighlights() {
           className="text-xs font-semibold uppercase tracking-widest mb-3"
           style={{ color: "var(--accent-cyan)" }}
         >
-          ✦ Deep Dive
+          {t("features_tagline")}
         </p>
         <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold" style={{ color: "var(--text-primary)" }}>
-          Designed for{" "}
-          <span style={{ color: "var(--text-muted)" }}>content creators.</span>
+          {t("features_title")}{" "}
+          <span style={{ color: "var(--text-muted)" }}>{t("features_title_muted")}</span>
         </h2>
       </motion.div>
 
@@ -175,12 +156,17 @@ function FeatureCard({
   feature,
   index,
 }: {
-  feature: (typeof features)[number];
+  feature: typeof features[number];
   index: number;
 }) {
+  const { t } = useLanguage();
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: "-80px" });
   const isEven = index % 2 === 0;
+
+  const highlights = Array.from({ length: 4 }).map((_, idx) =>
+    t(`feat_highlight_${feature.id}_${idx}`)
+  );
 
   return (
     <motion.div
@@ -214,7 +200,7 @@ function FeatureCard({
               border: `1px solid rgba(${feature.accentRgb},0.2)`,
             }}
           >
-            {feature.subtitle}
+            {t(`feat_subtitle_${feature.id}`)}
           </span>
         </div>
 
@@ -222,17 +208,17 @@ function FeatureCard({
           className="text-xl sm:text-2xl font-extrabold mb-3"
           style={{ color: "var(--text-primary)" }}
         >
-          {feature.title}
+          {t(`feat_title_${feature.id}`)}
         </h3>
         <p
           className="text-sm leading-relaxed mb-5"
           style={{ color: "var(--text-secondary)" }}
         >
-          {feature.description}
+          {t(`feat_desc_${feature.id}`)}
         </p>
 
         <ul className="flex flex-col gap-2 mb-6">
-          {feature.highlights.map((h) => (
+          {highlights.map((h) => (
             <li key={h} className="flex items-center gap-2.5 text-sm">
               <span
                 className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 text-xs"
@@ -247,14 +233,14 @@ function FeatureCard({
 
         <Link
           href={feature.href}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all hover:scale-105 hover:shadow-lg"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all hover:scale-105 hover:shadow-lg cursor-pointer"
           style={{
             background: `rgba(${feature.accentRgb},0.12)`,
             color: feature.accent,
             border: `1px solid rgba(${feature.accentRgb},0.25)`,
           }}
         >
-          Try it now
+          {t("btn_try_now")}
           <span className="text-base">→</span>
         </Link>
       </div>
@@ -265,7 +251,7 @@ function FeatureCard({
           className="rounded-xl overflow-hidden"
           style={{ border: `1px solid rgba(${feature.accentRgb},0.12)` }}
         >
-          {feature.visual}
+          {feature.visual(t)}
         </div>
       </div>
     </motion.div>

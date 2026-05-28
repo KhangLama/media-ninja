@@ -4,7 +4,8 @@ import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile } from "@ffmpeg/util";
 import { useEffect, useRef, useState, useMemo } from "react";
 import { useLanguage } from "@/components/LanguageContext";
-import { getSharedFile } from "@/lib/sharedFileStore";
+import { getSharedFile, clearSharedFile, setSharedFile } from "@/lib/sharedFileStore";
+import { useRouter } from "next/navigation";
 
 export type SubtitleSegment = {
   id: string;
@@ -28,6 +29,7 @@ function getUniqueFileNames(ext: string) {
 
 export default function SubtitleProcessor() {
   const { t } = useLanguage();
+  const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>("");
   const [currentTime, setCurrentTime] = useState<number>(0);
@@ -102,6 +104,7 @@ export default function SubtitleProcessor() {
     if (sharedFile) {
       setFile(sharedFile);
       setPreviewUrl(URL.createObjectURL(sharedFile));
+      setTimeout(clearSharedFile, 100);
     }
   }, []);
 
@@ -543,6 +546,19 @@ export default function SubtitleProcessor() {
                     <span>{t("sub_btn_transcribe")}</span>
                   )}
                 </button>
+
+                {file && file.type.startsWith("video/") && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSharedFile(file);
+                      router.push("/video-processor");
+                    }}
+                    className="flex w-full items-center justify-center gap-2 rounded-md border border-cyan-500/30 bg-neutral-900/60 hover:bg-cyan-500/10 py-2.5 text-sm font-semibold text-cyan-400 transition cursor-pointer"
+                  >
+                    ✂️ {t("video_choice_cutter") || "Cắt Video"}
+                  </button>
+                )}
                 
                 <button
                   type="button"
@@ -554,7 +570,7 @@ export default function SubtitleProcessor() {
                   }}
                   className="w-full text-center py-2 text-xs text-neutral-500 hover:text-neutral-300 transition cursor-pointer"
                 >
-                  Hủy và tải file khác
+                  {t("sub_btn_change_file") || "Hủy và tải file khác"}
                 </button>
               </div>
             </div>

@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { motion, useInView, useSpring, useTransform } from "framer-motion";
+import { useLanguage } from "@/components/LanguageContext";
 
 const stats = [
-  { value: 0, suffix: "", label: "Server Uploads", icon: "🚫" },
-  { value: 6, suffix: "+", label: "Powerful Tools", icon: "⚡" },
-  { value: 100, suffix: "%", label: "Local Processing", icon: "🔒" },
-  { value: 0, suffix: "ms", label: "Upload Time", icon: "🚀" },
+  { id: "uploads", value: 0, suffix: "", icon: "🚫" },
+  { id: "tools", value: 6, suffix: "+", icon: "⚡" },
+  { id: "processing", value: 100, suffix: "%", icon: "🔒" },
+  { id: "time", value: 0, suffix: "ms", icon: "🚀" },
 ];
 
 function AnimatedCounter({
@@ -35,6 +36,7 @@ function AnimatedCounter({
 }
 
 export default function StatsBar() {
+  const { t } = useLanguage();
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: "-80px" });
 
@@ -55,7 +57,7 @@ export default function StatsBar() {
       >
         {stats.map((stat, i) => (
           <motion.div
-            key={stat.label}
+            key={stat.id}
             initial={{ opacity: 0, y: 16 }}
             animate={inView ? { opacity: 1, y: 0 } : {}}
             transition={{ duration: 0.5, delay: i * 0.1, ease: "easeOut" }}
@@ -74,7 +76,7 @@ export default function StatsBar() {
               <AnimatedCounter target={stat.value} suffix={stat.suffix} />
             </div>
             <p className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
-              {stat.label}
+              {t(`stat_${stat.id}`)}
             </p>
           </motion.div>
         ))}
